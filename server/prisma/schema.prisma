@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  CLIENT
+  PLANNER
+  VENDOR
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  phone            String?
+  password         String
+  role             Role      @default(CLIENT)
+  createdAt        DateTime  @default(now())
+  
+  bookings         Booking[]
+  plannerTasks     Task[]    @relation("PlannerTasks")
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+}
+
+model Package {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String    @db.Text
+  price       Float
+  image       String?
+  createdAt   DateTime  @default(now())
+  
+  bookings    Booking[]
+}
+
+model Vendor {
+  id        Int      @id @default(autoincrement())
+  name      String
+  service   String   // Photographer, Decorator, Caterer, DJ, Transport, Makeup Artist, Venue
+  phone     String?
+  email     String?
+  price     Float
+  location  String?
+  createdAt DateTime @default(now())
+}
+
+model Booking {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageId     Int?
+  package       Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  budget        Float
+  date          DateTime
+  status        BookingStatus @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  
+  payments      Payment[]
+  tasks         Task[]
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  bookingId     Int
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount        Float
+  method        String        // MoMo, AirtelMoney, Visa, Card
+  transactionId String        @unique
+  status        PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+}
+
+model Task {
+  id        Int        @id @default(autoincrement())
+  bookingId Int
+  booking   Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  plannerId Int?
+  planner   User?      @relation("PlannerTasks", fields: [plannerId], references: [id], onDelete: SetNull)
+  task      String
+  deadline  DateTime?
+  status    TaskStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId Int
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+}
