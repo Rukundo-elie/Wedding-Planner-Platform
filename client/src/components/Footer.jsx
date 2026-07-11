@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart } from 'lucide-react';
+import { BellRingIcon, Heart } from 'lucide-react';
 import WeddingRingIcon from './WeddingRingIcon';
 
 const Footer = () => {
@@ -33,7 +33,7 @@ const Footer = () => {
             <h3 className="text-white font-semibold text-sm mb-4">Contact Us</h3>
             <ul className="space-y-2 text-sm">
               <li>Email: contact@weddingplanner.rw</li>
-              <li>Phone: +250 788 516 370</li>
+              <li>Phone: +250 788 001 001</li>
               <li>Office: KN 4 Rd, Kigali, Rwanda</li>
             </ul>
           </div>
@@ -42,7 +42,7 @@ const Footer = () => {
         <div className="mt-12 pt-8 border-t border-gray-900 text-center text-xs flex flex-col sm:flex-row justify-between items-center gap-4">
           <p>&copy; {new Date().getFullYear()} Wedding Planner & Budget Management Platform. All rights reserved.</p>
           <p className="flex items-center gap-1">
-            {/* Made with <Heart className="h-3 w-3 fill-rose-500 text-rose-500" /> for couples worldwide. */}
+            Made with <WeddingRingIcon className="h-3 w-3 fill-rose-500 text-rose-500" /> for couples worldwide.
           </p>
         </div>
       </div>

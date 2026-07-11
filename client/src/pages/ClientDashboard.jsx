@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -8,6 +9,7 @@ import {
 
 const ClientDashboard = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   
   // Bookings state
@@ -32,7 +34,13 @@ const ClientDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+    
+    const selectPkg = searchParams.get('selectPackage');
+    if (selectPkg) {
+      setSelectedPkgId(selectPkg);
+      setActiveTab('book');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let interval;
@@ -129,6 +137,30 @@ const ClientDashboard = () => {
     } catch (err) {
       showNotification('error', err.response?.data?.message || 'Payment failed.');
     }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      return showNotification('error', 'File size exceeds 5MB limit.');
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64Data = reader.result;
+      try {
+        const response = await axios.put(`/bookings/${activeBooking.id}/image`, {
+          image: base64Data
+        });
+        showNotification('success', response.data.message);
+        setBookings(bookings.map(b => b.id === activeBooking.id ? { ...b, image: base64Data } : b));
+      } catch (err) {
+        showNotification('error', 'Failed to upload cover photo.');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSendMessage = async (e) => {
@@ -234,6 +266,27 @@ const ClientDashboard = () => {
               <h2 className="text-xl font-bold text-gray-900 border-b pb-4">My Wedding Details</h2>
               {activeBooking ? (
                 <div className="space-y-6">
+                  {/* Cover Photo */}
+                  {activeBooking.image ? (
+                    <div className="relative h-64 w-full rounded-2xl overflow-hidden shadow-sm group border border-gray-100 mb-6">
+                      <img src={activeBooking.image} alt="Wedding cover" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <label className="cursor-pointer rounded-full bg-white/90 px-4 py-2 text-xs font-bold text-gray-800 hover:bg-white transition flex items-center gap-1.5 shadow">
+                          <span>Change Cover Photo</span>
+                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-rose-50/20 border-2 border-dashed border-rose-200 p-8 rounded-2xl text-center space-y-3 mb-6">
+                      <p className="text-sm font-semibold text-rose-600">Add a Wedding Cover Photo or Decoration Inspiration Image!</p>
+                      <label className="inline-flex cursor-pointer rounded-full bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-500 shadow-md shadow-rose-200 transition">
+                        <span>Add Cover Photo</span>
+                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                      </label>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="bg-rose-50/30 p-5 rounded-2xl border border-rose-100/50">
                       <div className="text-xs text-rose-500 font-bold uppercase tracking-wider mb-1">Wedding Date</div>
@@ -381,13 +434,13 @@ const ClientDashboard = () => {
                     Select a Package Inclusions Plan
                   </label>
                   <select
-                    value={selectedPkgId}
+                    value={selectedPkgId ? selectedPkgId.toString() : ''}
                     onChange={(e) => setSelectedPkgId(e.target.value)}
                     className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none focus:ring-1"
                   >
                     <option value="">-- Custom Package (Specify Budget Below) --</option>
                     {packages.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} - {p.price.toLocaleString()} RWF</option>
+                      <option key={p.id} value={p.id.toString()}>{p.name} - {p.price.toLocaleString()} RWF</option>
                     ))}
                   </select>
                 </div>

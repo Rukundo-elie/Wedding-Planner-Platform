@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { Heart, Sparkles, ShieldCheck, BadgeDollarSign, Compass, Calendar, ArrowRight, Star, Plus } from 'lucide-react';
+import WeddingRingIcon from '../components/WeddingRingIcon';
+import { useAuth } from '../contexts/AuthContext';
 
 const Home = () => {
+  const { isAuthenticated } = useAuth();
   const [packages, setPackages] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +28,20 @@ const Home = () => {
     };
     fetchData();
   }, []);
+
+  // Handle hash scroll transitions
+  useEffect(() => {
+    if (window.location.hash) {
+      const timer = setTimeout(() => {
+        const id = window.location.hash.substring(1);
+        const element = document.getElementById(id);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [window.location.hash, loading]);
 
   return (
     <div className="bg-rose-50/20 min-h-screen">
@@ -152,9 +169,13 @@ const Home = () => {
               {packages.map((pkg) => (
                 <div key={pkg.id} className="flex flex-col justify-between overflow-hidden rounded-3xl bg-white shadow-xl shadow-gray-100 border border-gray-100 transform hover:scale-[1.02] transition duration-300">
                   <div>
-                    {pkg.image && (
+                    {pkg.image ? (
                       <div className="h-52 w-full overflow-hidden">
                         <img src={pkg.image} alt={pkg.name} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-52 w-full bg-rose-50/40 flex items-center justify-center border-b border-rose-100/50">
+                        <WeddingRingIcon className="h-20 w-20" />
                       </div>
                     )}
                     <div className="p-8">
@@ -170,7 +191,7 @@ const Home = () => {
                   </div>
                   <div className="p-8 pt-0">
                     <Link
-                      to="/login"
+                      to={isAuthenticated ? `/client?selectPackage=${pkg.id}` : `/login?redirect=/client?selectPackage=${pkg.id}`}
                       className="block w-full text-center rounded-full bg-rose-600 py-3 text-sm font-bold text-white shadow hover:bg-rose-500 transition-colors"
                     >
                       Book Package
@@ -212,6 +233,80 @@ const Home = () => {
               ))}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* About Us Section */}
+      <section id="about" className="py-24 sm:py-32 bg-white">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div className="lg:col-span-5 relative">
+              <div className="aspect-[4/3] rounded-3xl overflow-hidden shadow-xl border-4 border-white">
+                <img
+                  src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=800"
+                  alt="Wedding planners organizing details"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+            <div className="lg:col-span-7 space-y-6">
+              <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">About IDA Technology Planners</h2>
+              <p className="text-lg text-gray-600 leading-relaxed">
+                At IDA Technology, we believe that planning your wedding should be as joyous and magical as the day itself. Our dedicated team of professional coordinators, designers, and logistics experts are committed to simplifying the entire preparation timeline on your behalf.
+              </p>
+              <p className="text-gray-500 leading-relaxed text-sm">
+                Instead of dealing with dozens of vendors, negotiating contracts, and tracking task completions manually, you can simply select one of our curated packages or declare your target budget. We manage all preparations, leaving you free to focus on celebrating your love.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section id="contact" className="py-24 bg-rose-50/20 border-t border-rose-100">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center space-y-4 mb-16">
+            <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">Get In Touch</h2>
+            <p className="text-gray-600 text-sm">Have questions about our packages or custom budget planning? Send us a message.</p>
+          </div>
+
+          <div className="mx-auto max-w-xl bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <form onSubmit={(e) => { e.preventDefault(); alert('Message sent successfully! Our planners will contact you shortly.'); }} className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Your Name</label>
+                <input
+                  type="text"
+                  required
+                  className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                  placeholder="Elie Elie"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                  placeholder="elie@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Message / Inquiry</label>
+                <textarea
+                  required
+                  rows={4}
+                  className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                  placeholder="Tell us about your wedding plans..."
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-2xl bg-rose-600 py-3.5 px-4 text-sm font-bold text-white shadow-lg shadow-rose-200 hover:bg-rose-505 transition"
+              >
+                Send Message
+              </button>
+            </form>
+          </div>
         </div>
       </section>
     </div>

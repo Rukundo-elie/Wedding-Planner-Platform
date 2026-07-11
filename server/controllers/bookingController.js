@@ -158,9 +158,42 @@ const updateBookingStatus = async (req, res) => {
   }
 };
 
+// Update booking wedding cover photo
+const updateBookingImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { image } = req.body;
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found.' });
+    }
+
+    if (role !== 'ADMIN' && role !== 'PLANNER' && booking.userId !== userId) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: parseInt(id) },
+      data: { image },
+    });
+
+    res.status(200).json({ message: 'Wedding cover image updated successfully!', booking: updatedBooking });
+  } catch (error) {
+    console.error('Error updating booking image:', error);
+    res.status(500).json({ message: 'Error updating wedding cover photo.' });
+  }
+};
+
 module.exports = {
   createBooking,
   getAllBookings,
   getBookingById,
   updateBookingStatus,
+  updateBookingImage,
 };

@@ -3,12 +3,14 @@ const bcrypt = require('bcryptjs');
 
 const seedDatabase = async () => {
   try {
+    // Clear packages and vendors to force updates to reflect in database
+    console.log('Refreshing packages and vendors in database...');
+    await prisma.package.deleteMany();
+    await prisma.vendor.deleteMany();
+
     // 1. Seed Packages
-    const packageCount = await prisma.package.count();
-    if (packageCount === 0) {
-      console.log('Seeding default packages...');
-      await prisma.package.createMany({
-        data: [
+    await prisma.package.createMany({
+      data: [
           {
             name: 'Silver Package',
             description: 'Essential wedding planning package. Includes venue decoration, professional photography (up to 6 hours), sound system with DJ, and a 2-tier wedding cake. Perfect for small, intimate gatherings.',
@@ -30,14 +32,11 @@ const seedDatabase = async () => {
         ],
       });
       console.log('Packages seeded successfully.');
-    }
 
     // 2. Seed Vendors
-    const vendorCount = await prisma.vendor.count();
-    if (vendorCount === 0) {
-      console.log('Seeding default vendors...');
-      await prisma.vendor.createMany({
-        data: [
+    console.log('Seeding default vendors...');
+    await prisma.vendor.createMany({
+      data: [
           { name: 'Kigali Serena Hotel Venue', service: 'Venue', price: 1500000.0, location: 'Kigali City', phone: '+250788100100', email: 'serena.venue@hotel.rw' },
           { name: 'Akagera Hall Venue', service: 'Venue', price: 800000.0, location: 'Kigali City', phone: '+250788200200', email: 'akagera.hall@yahoo.com' },
           { name: 'Dream Events Decorators', service: 'Decorator', price: 600000.0, location: 'Kigali City', phone: '+250788300300', email: 'info@dreamevents.rw' },
@@ -51,7 +50,6 @@ const seedDatabase = async () => {
         ],
       });
       console.log('Vendors seeded successfully.');
-    }
 
     // 3. Seed an Admin and a Planner for testing
     const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });

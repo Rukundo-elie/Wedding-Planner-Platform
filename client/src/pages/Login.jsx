@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
 import WeddingRingIcon from '../components/WeddingRingIcon';
@@ -11,6 +11,7 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,17 +21,22 @@ const Login = () => {
     try {
       const user = await login(email, password);
       
-      // Redirect based on role
-      switch (user.role) {
-        case 'ADMIN':
-          navigate('/admin');
-          break;
-        case 'PLANNER':
-          navigate('/planner');
-          break;
-        default:
-          navigate('/client');
-          break;
+      const redirectPath = searchParams.get('redirect');
+      if (redirectPath && user.role === 'CLIENT') {
+        navigate(redirectPath);
+      } else {
+        // Redirect based on role
+        switch (user.role) {
+          case 'ADMIN':
+            navigate('/admin');
+            break;
+          case 'PLANNER':
+            navigate('/planner');
+            break;
+          default:
+            navigate('/client');
+            break;
+        }
       }
     } catch (err) {
       setError(err);

@@ -82,6 +82,7 @@ model Booking {
   date          DateTime
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
+  image         String?       @db.LongText
   createdAt     DateTime      @default(now())
   
   payments      Payment[]
