@@ -5,14 +5,15 @@ const prisma = require('../config/db');
 const register = async (req, res) => {
   try {
     const { name, email, phone, password, role } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
     
-    if (!name || !email || !password) {
+    if (!name || !normalizedEmail || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
     }
     
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
     if (existingUser) {
       return res.status(400).json({ message: 'A user with this email already exists.' });
@@ -30,7 +31,7 @@ const register = async (req, res) => {
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: normalizedEmail,
         phone,
         password: hashedPassword,
         role: userRole,
@@ -61,23 +62,36 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
     
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
     
     // Find user by email
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
     
-    // Compare password
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    // Compare password. Existing seeded/app-created users are bcrypt hashed.
+    // If a user was inserted manually with plain text, allow one successful
+    // login and immediately upgrade the stored password to a bcrypt hash.
+    const passwordLooksHashed = /^\$2[aby]\$\d{2}\$/.test(user.password);
+    const isPasswordCorrect = passwordLooksHashed
+      ? await bcrypt.compare(password, user.password)
+      : password === user.password;
     if (!isPasswordCorrect) {
       return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    if (!passwordLooksHashed) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: await bcrypt.hash(password, 10) },
+      });
     }
     
     // Generate JWT token
