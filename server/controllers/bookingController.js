@@ -178,6 +178,18 @@ const updateBookingImage = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
+    if (!image || typeof image !== 'string') {
+      return res.status(400).json({ message: 'Image data is required.' });
+    }
+
+    if (!image.startsWith('data:image/')) {
+      return res.status(400).json({ message: 'Invalid image format. Please upload a JPG, PNG, or WebP photo.' });
+    }
+
+    if (image.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ message: 'Image is too large. Please choose a smaller photo.' });
+    }
+
     const updatedBooking = await prisma.booking.update({
       where: { id: parseInt(id) },
       data: { image },

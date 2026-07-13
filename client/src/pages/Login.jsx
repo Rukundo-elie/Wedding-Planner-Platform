@@ -9,7 +9,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const googleButtonRef = useRef(null);
@@ -17,13 +17,27 @@ const Login = () => {
   loginWithGoogleRef.current = loginWithGoogle;
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-  const redirectForRole = useCallback((user) => {
-    switch (user.role) {
-      case 'ADMIN': navigate('/admin'); break;
-      case 'PLANNER': navigate('/planner'); break;
-      default: navigate('/client'); break;
+  const redirectForRole = useCallback((currentUser) => {
+    switch (currentUser.role) {
+      case 'ADMIN': navigate('/admin', { replace: true }); break;
+      case 'PLANNER': navigate('/planner', { replace: true }); break;
+      default: navigate('/client', { replace: true }); break;
     }
   }, [navigate]);
+
+  const redirectAfterLogin = useCallback((currentUser) => {
+    const redirectPath = searchParams.get('redirect');
+    if (redirectPath && currentUser.role === 'CLIENT') {
+      navigate(redirectPath, { replace: true });
+      return;
+    }
+    redirectForRole(currentUser);
+  }, [navigate, redirectForRole, searchParams]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    redirectAfterLogin(user);
+  }, [isAuthenticated, user, redirectAfterLogin]);
 
   useEffect(() => {
     if (!googleClientId || !googleButtonRef.current) return undefined;
@@ -35,7 +49,7 @@ const Login = () => {
           setError('');
           setSubmitting(true);
           try {
-            redirectForRole(await loginWithGoogleRef.current(credential));
+            await loginWithGoogleRef.current(credential);
           } catch (err) {
             setError(typeof err === 'string' ? err : err?.message || 'Sign-in failed');
           } finally {
@@ -61,7 +75,7 @@ const Login = () => {
     script.onload = renderGoogleButton;
     document.head.appendChild(script);
     return () => { script.onload = null; };
-  }, [googleClientId, redirectForRole]);
+  }, [googleClientId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -69,14 +83,7 @@ const Login = () => {
     setSubmitting(true);
 
     try {
-      const user = await login(email, password);
-
-      const redirectPath = searchParams.get('redirect');
-      if (redirectPath && user.role === 'CLIENT') {
-        navigate(redirectPath);
-      } else {
-        redirectForRole(user);
-      }
+      await login(email, password);
     } catch (err) {
       setError(typeof err === 'string' ? err : err?.message || 'Login failed');
     } finally {
@@ -113,7 +120,6 @@ const Login = () => {
           )}
 
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Email input */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
                 Email address
@@ -136,7 +142,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Password input */}
             <div>
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
                 Password
@@ -164,7 +169,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Submit button */}
             <div>
               <button
                 type="submit"
@@ -187,7 +191,6 @@ const Login = () => {
             <p className="text-center text-xs text-gray-500">Google sign-in will be available once it is configured.</p>
           )}
 
-          {/* Seed demo info box */}
           <div className="mt-8 border-t border-gray-100 pt-6">
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Demo User Logins</h4>
             <div className="space-y-2 text-xs text-gray-600 bg-gray-50 p-4 rounded-xl">

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  Calculator, Calendar, CreditCard, CheckSquare, 
-  MessageSquare, Send, Bell, Award, Smile 
+import {
+  Calculator, Calendar, CreditCard, CheckSquare,
+  MessageSquare, Send, Bell, Award, Smile
 } from 'lucide-react';
+import { readImageFile } from '../utils/cropCoverImage';
+import CoverPhotoEditor from '../components/CoverPhotoEditor';
 
 const ClientDashboard = () => {
   const { user } = useAuth();
@@ -30,6 +32,8 @@ const ClientDashboard = () => {
 
   // Loading/error
   const [loading, setLoading] = useState(true);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [coverEditor, setCoverEditor] = useState(null);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
   useEffect(() => {
@@ -139,28 +143,53 @@ const ClientDashboard = () => {
     }
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const saveCoverPhoto = async (bookingId, imageData) => {
+    setUploadingImage(true);
 
-    if (file.size > 5 * 1024 * 1024) {
-      return showNotification('error', 'File size exceeds 5MB limit.');
+    try {
+      const response = await axios.put(`/bookings/${bookingId}/image`, {
+        image: imageData,
+      });
+
+      const savedImage = response.data.booking?.image || imageData;
+      setBookings((prev) => prev.map((b) => (
+        b.id === bookingId ? { ...b, image: savedImage } : b
+      )));
+      setCoverEditor(null);
+      showNotification('success', response.data.message || 'Cover photo updated successfully!');
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Failed to upload cover photo.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleImageSelect = async (e, bookingId) => {
+    const file = e.target.files?.[0];
+    if (!file || !bookingId) return;
+
+    if (!file.type.startsWith('image/')) {
+      e.target.value = '';
+      return showNotification('error', 'Please select a valid image file (JPG, PNG, or WebP).');
     }
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Data = reader.result;
-      try {
-        const response = await axios.put(`/bookings/${activeBooking.id}/image`, {
-          image: base64Data
-        });
-        showNotification('success', response.data.message);
-        setBookings(bookings.map(b => b.id === activeBooking.id ? { ...b, image: base64Data } : b));
-      } catch (err) {
-        showNotification('error', 'Failed to upload cover photo.');
-      }
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) {
+      e.target.value = '';
+      return showNotification('error', 'File size exceeds 8MB limit.');
+    }
+
+    try {
+      const imageSrc = await readImageFile(file);
+      setCoverEditor({ bookingId, imageSrc });
+    } catch {
+      showNotification('error', 'Unable to open the selected photo.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const openCoverEditor = (bookingId, imageSrc) => {
+    setCoverEditor({ bookingId, imageSrc });
   };
 
   const handleSendMessage = async (e) => {
@@ -191,6 +220,14 @@ const ClientDashboard = () => {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {coverEditor && (
+        <CoverPhotoEditor
+          imageSrc={coverEditor.imageSrc}
+          saving={uploadingImage}
+          onCancel={() => !uploadingImage && setCoverEditor(null)}
+          onSave={(imageData) => saveCoverPhoto(coverEditor.bookingId, imageData)}
+        />
+      )}
       {/* Alert Notification */}
       {msg.text && (
         <div className={`mb-6 p-4 rounded-xl text-sm border flex items-center gap-2.5 ${
@@ -270,19 +307,27 @@ const ClientDashboard = () => {
                   {activeBooking.image ? (
                     <div className="relative h-64 w-full rounded-2xl overflow-hidden shadow-sm group border border-gray-100 mb-6">
                       <img src={activeBooking.image} alt="Wedding cover" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <label className="cursor-pointer rounded-full bg-white/90 px-4 py-2 text-xs font-bold text-gray-800 hover:bg-white transition flex items-center gap-1.5 shadow">
-                          <span>Change Cover Photo</span>
-                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                      <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openCoverEditor(activeBooking.id, activeBooking.image)}
+                          disabled={uploadingImage}
+                          className="rounded-full bg-white/90 px-4 py-2 text-xs font-bold text-gray-800 hover:bg-white transition shadow"
+                        >
+                          Adjust Photo
+                        </button>
+                        <label className={`cursor-pointer rounded-full bg-white/90 px-4 py-2 text-xs font-bold text-gray-800 hover:bg-white transition flex items-center gap-1.5 shadow ${uploadingImage ? 'opacity-60 pointer-events-none' : ''}`}>
+                          <span>Change Photo</span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => handleImageSelect(e, activeBooking.id)} className="hidden" disabled={uploadingImage} />
                         </label>
                       </div>
                     </div>
                   ) : (
                     <div className="bg-rose-50/20 border-2 border-dashed border-rose-200 p-8 rounded-2xl text-center space-y-3 mb-6">
                       <p className="text-sm font-semibold text-rose-600">Add a Wedding Cover Photo or Decoration Inspiration Image!</p>
-                      <label className="inline-flex cursor-pointer rounded-full bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-500 shadow-md shadow-rose-200 transition">
-                        <span>Add Cover Photo</span>
-                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                      <label className={`inline-flex cursor-pointer rounded-full bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-500 shadow-md shadow-rose-200 transition ${uploadingImage ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <span>{uploadingImage ? 'Saving...' : 'Add Cover Photo'}</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => handleImageSelect(e, activeBooking.id)} className="hidden" disabled={uploadingImage} />
                       </label>
                     </div>
                   )}

@@ -27,7 +27,7 @@ const seedDatabase = async () => {
             name: 'Diamond Package',
             description: 'Ultimate all-inclusive luxury wedding package. Includes premium floral decoration, professional photography and cinematic videography, catering for up to 250 guests, luxury wedding fleet (Mercedes/Range Rover), 5-tier cake, makeup, and live band performance.',
             price: 6000000.0,
-            image: null,
+            image: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800',
           },
         ],
       });
