@@ -126,11 +126,6 @@ const Login = () => {
                   placeholder="name@wedding.com"
                 />
               </div>
-              <div className="mt-2 text-right">
-                <Link to="/forgot-password" className="text-sm font-semibold text-rose-600 hover:text-rose-500">
-                  Forgot password?
-                </Link>
-              </div>
             </div>
 
             {/* Password input */}
@@ -153,6 +148,11 @@ const Login = () => {
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-950 placeholder-gray-400 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 sm:text-sm"
                   placeholder="••••••••"
                 />
+              </div>
+              <div className="mt-2 text-right">
+                <Link to="/forgot-password" className="text-sm font-semibold text-rose-600 hover:text-rose-500">
+                  Forgot password?
+                </Link>
               </div>
             </div>
 
