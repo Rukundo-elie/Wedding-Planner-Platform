@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
@@ -9,8 +9,56 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const googleButtonRef = useRef(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  const redirectForRole = (user) => {
+    switch (user.role) {
+      case 'ADMIN': navigate('/admin'); break;
+      case 'PLANNER': navigate('/planner'); break;
+      default: navigate('/client'); break;
+    }
+  };
+
+  useEffect(() => {
+    if (!googleClientId || !googleButtonRef.current) return undefined;
+
+    const renderGoogleButton = () => {
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async ({ credential }) => {
+          setError('');
+          setSubmitting(true);
+          try {
+            redirectForRole(await loginWithGoogle(credential));
+          } catch (err) {
+            setError(err);
+          } finally {
+            setSubmitting(false);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline', size: 'large', text: 'continue_with', width: 360,
+      });
+    };
+
+    const existingScript = document.querySelector('script[data-google-identity]');
+    if (existingScript) {
+      if (window.google) renderGoogleButton();
+      else existingScript.addEventListener('load', renderGoogleButton);
+      return () => existingScript.removeEventListener('load', renderGoogleButton);
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.dataset.googleIdentity = 'true';
+    script.onload = renderGoogleButton;
+    document.head.appendChild(script);
+    return () => { script.onload = null; };
+  }, [googleClientId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,18 +68,7 @@ const Login = () => {
     try {
       const user = await login(email, password);
       
-      // Redirect based on role
-      switch (user.role) {
-        case 'ADMIN':
-          navigate('/admin');
-          break;
-        case 'PLANNER':
-          navigate('/planner');
-          break;
-        default:
-          navigate('/client');
-          break;
-      }
+      redirectForRole(user);
     } catch (err) {
       setError(err);
     } finally {
@@ -89,6 +126,11 @@ const Login = () => {
                   placeholder="name@wedding.com"
                 />
               </div>
+              <div className="mt-2 text-right">
+                <Link to="/forgot-password" className="text-sm font-semibold text-rose-600 hover:text-rose-500">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {/* Password input */}
@@ -125,6 +167,17 @@ const Login = () => {
               </button>
             </div>
           </form>
+
+          <div className="my-6 flex items-center gap-3 text-xs text-gray-400">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span>OR</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+          {googleClientId ? (
+            <div ref={googleButtonRef} className="flex justify-center" />
+          ) : (
+            <p className="text-center text-xs text-gray-500">Google sign-in will be available once it is configured.</p>
+          )}
 
           {/* Seed demo info box */}
           <div className="mt-8 border-t border-gray-100 pt-6">
