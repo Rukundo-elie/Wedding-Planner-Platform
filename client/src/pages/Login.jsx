@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
 import WeddingRingIcon from '../components/WeddingRingIcon';
@@ -9,35 +9,25 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login, loginWithGoogle, user, isAuthenticated } = useAuth();
+  const [credentialsUnlocked, setCredentialsUnlocked] = useState(false);
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const googleButtonRef = useRef(null);
-  const loginWithGoogleRef = useRef(loginWithGoogle);
-  loginWithGoogleRef.current = loginWithGoogle;
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-  const redirectForRole = useCallback((currentUser) => {
-    switch (currentUser.role) {
-      case 'ADMIN': navigate('/admin', { replace: true }); break;
-      case 'PLANNER': navigate('/planner', { replace: true }); break;
-      default: navigate('/client', { replace: true }); break;
-    }
-  }, [navigate]);
-
-  const redirectAfterLogin = useCallback((currentUser) => {
-    const redirectPath = searchParams.get('redirect');
-    if (redirectPath && currentUser.role === 'CLIENT') {
-      navigate(redirectPath, { replace: true });
-      return;
-    }
-    redirectForRole(currentUser);
-  }, [navigate, redirectForRole, searchParams]);
-
+  // Always begin a new sign-in attempt with blank credentials.
   useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    redirectAfterLogin(user);
-  }, [isAuthenticated, user, redirectAfterLogin]);
+    setEmail('');
+    setPassword('');
+  }, []);
+
+  const redirectForRole = (user) => {
+    switch (user.role) {
+      case 'ADMIN': navigate('/admin'); break;
+      case 'PLANNER': navigate('/planner'); break;
+      default: navigate('/client'); break;
+    }
+  };
 
   useEffect(() => {
     if (!googleClientId || !googleButtonRef.current) return undefined;
@@ -49,9 +39,9 @@ const Login = () => {
           setError('');
           setSubmitting(true);
           try {
-            await loginWithGoogleRef.current(credential);
+            redirectForRole(await loginWithGoogle(credential));
           } catch (err) {
-            setError(typeof err === 'string' ? err : err?.message || 'Sign-in failed');
+            setError(err);
           } finally {
             setSubmitting(false);
           }
@@ -83,9 +73,11 @@ const Login = () => {
     setSubmitting(true);
 
     try {
-      await login(email, password);
+      const user = await login(email, password);
+      
+      redirectForRole(user);
     } catch (err) {
-      setError(typeof err === 'string' ? err : err?.message || 'Login failed');
+      setError(err);
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +111,8 @@ const Login = () => {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-6" onSubmit={handleSubmit} autoComplete="off">
+            {/* Email input */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
                 Email address
@@ -130,11 +123,13 @@ const Login = () => {
                 </div>
                 <input
                   id="email"
-                  name="email"
+                  name="wedding-planner-login-email"
                   type="email"
-                  autoComplete="email"
+                  autoComplete="off"
+                  readOnly={!credentialsUnlocked}
                   required
                   value={email}
+                  onFocus={() => setCredentialsUnlocked(true)}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-950 placeholder-gray-400 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 sm:text-sm"
                   placeholder="name@wedding.com"
@@ -142,6 +137,7 @@ const Login = () => {
               </div>
             </div>
 
+            {/* Password input */}
             <div>
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
                 Password
@@ -152,11 +148,13 @@ const Login = () => {
                 </div>
                 <input
                   id="password"
-                  name="password"
+                  name="wedding-planner-login-password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
+                  readOnly={!credentialsUnlocked}
                   required
                   value={password}
+                  onFocus={() => setCredentialsUnlocked(true)}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-950 placeholder-gray-400 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 sm:text-sm"
                   placeholder="••••••••"
@@ -169,6 +167,7 @@ const Login = () => {
               </div>
             </div>
 
+            {/* Submit button */}
             <div>
               <button
                 type="submit"
@@ -191,6 +190,7 @@ const Login = () => {
             <p className="text-center text-xs text-gray-500">Google sign-in will be available once it is configured.</p>
           )}
 
+          {/* Seed demo info box */}
           <div className="mt-8 border-t border-gray-100 pt-6">
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Demo User Logins</h4>
             <div className="space-y-2 text-xs text-gray-600 bg-gray-50 p-4 rounded-xl">

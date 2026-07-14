@@ -117,8 +117,11 @@ const forgotPassword = async (req, res) => {
     }
 
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    // Do not disclose whether an email address is registered.
-    const response = { message: 'If an account exists for that email, a reset link has been created.' };
+    if (!user) {
+      return res.status(404).json({ message: 'No Account For That Email' });
+    }
+
+    const response = { message: 'A reset link is ready for your account.' };
 
     if (user) {
       await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
