@@ -10,8 +10,18 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
 
-  // Set base URL for API calls
-  axios.defaults.baseURL = import.meta.env.VITE_API_URL || '/api';
+  // Set smart base URL for API calls (Vercel -> Render or Local)
+  const getBaseURL = () => {
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return 'http://localhost:5000/api';
+    }
+    return '/api';
+  };
+
+  axios.defaults.baseURL = getBaseURL();
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
