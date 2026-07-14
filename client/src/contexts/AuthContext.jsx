@@ -12,8 +12,13 @@ export const AuthProvider = ({ children }) => {
 
   // Set smart base URL for API calls (Vercel -> Render or Local)
   const getBaseURL = () => {
-    if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL;
+    let url = import.meta.env.VITE_API_URL;
+    if (url) {
+      url = url.trim().replace(/\/$/, '');
+      if (!url.endsWith('/api')) {
+        url = `${url}/api`;
+      }
+      return url;
     }
     if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
       return 'http://localhost:5000/api';
