@@ -9,10 +9,17 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [credentialsUnlocked, setCredentialsUnlocked] = useState(false);
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const googleButtonRef = useRef(null);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  // Always begin a new sign-in attempt with blank credentials.
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+  }, []);
 
   const redirectForRole = (user) => {
     switch (user.role) {
@@ -104,7 +111,7 @@ const Login = () => {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-6" onSubmit={handleSubmit} autoComplete="off">
             {/* Email input */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
@@ -116,11 +123,13 @@ const Login = () => {
                 </div>
                 <input
                   id="email"
-                  name="email"
+                  name="wedding-planner-login-email"
                   type="email"
-                  autoComplete="email"
+                  autoComplete="off"
+                  readOnly={!credentialsUnlocked}
                   required
                   value={email}
+                  onFocus={() => setCredentialsUnlocked(true)}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-950 placeholder-gray-400 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 sm:text-sm"
                   placeholder="name@wedding.com"
@@ -139,11 +148,13 @@ const Login = () => {
                 </div>
                 <input
                   id="password"
-                  name="password"
+                  name="wedding-planner-login-password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
+                  readOnly={!credentialsUnlocked}
                   required
                   value={password}
+                  onFocus={() => setCredentialsUnlocked(true)}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-950 placeholder-gray-400 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 sm:text-sm"
                   placeholder="••••••••"

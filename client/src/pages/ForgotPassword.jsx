@@ -33,7 +33,7 @@ const ForgotPassword = () => {
         <p className="mt-2 text-sm text-gray-600">Enter your account email and we’ll send you a reset link.</p>
 
         {message && <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">{message}</div>}
-        {resetUrl && <Link to={new URL(resetUrl).pathname + new URL(resetUrl).search} className="mt-4 block text-sm font-semibold text-rose-600 hover:text-rose-500">Continue to reset password (development)</Link>}
+        {resetUrl && <Link to={new URL(resetUrl).pathname + new URL(resetUrl).search} className="mt-4 block text-sm font-semibold text-rose-600 hover:text-rose-500">Continue to reset password (development En*)</Link>}
         {error && <div className="mt-6 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
         {!message && <form onSubmit={handleSubmit} className="mt-7 space-y-6">
