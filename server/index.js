@@ -24,6 +24,10 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve React Frontend Static Files in Production
+const clientBuildPath = path.join(__dirname, '../client/dist');
+app.use(express.static(clientBuildPath));
+
 // Mount API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/packages', packageRoutes);
@@ -34,9 +38,13 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/reports', reportRoutes);
 
-// Base Route
-app.get('/', (req, res) => {
-  res.send('Wedding Planner & Budget Management API is running...');
+// Catch-all route to serve React's index.html for frontend routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientBuildPath, 'index.html'), (err) => {
+    if (err) {
+      res.status(200).send('Wedding Planner & Budget Management API is running... (Frontend build not found)');
+    }
+  });
 });
 
 // Error handling middleware
