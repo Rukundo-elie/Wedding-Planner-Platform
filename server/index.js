@@ -51,5 +51,9 @@ app.listen(PORT, async () => {
   
   // Seed database
   console.log('Checking database tables to seed default data...');
-  await seedDatabase();
+  try {
+    await seedDatabase();
+  } catch (error) {
+    console.error('Database seeding failed during startup:', error.message || error);
+  }
 });
