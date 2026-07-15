@@ -1,9 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient({
-  log: ['error', 'warn'],
-});
+const prisma = new PrismaClient();
 
-console.log('Prisma Client initialized with native engine.');
+console.log('Prisma Client initialized.');
 
 module.exports = prisma;
