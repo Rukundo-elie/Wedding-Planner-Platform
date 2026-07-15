@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext(null);
@@ -10,18 +10,38 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
 
-  // Set base URL for API calls
-  axios.defaults.baseURL = 'http://localhost:5000/api';
+  // Set smart base URL for API calls (Vercel -> Render or Local)
+  const getBaseURL = () => {
+    let url = import.meta.env.VITE_API_URL;
+    if (url) {
+      url = url.trim().replace(/\/$/, '');
+      if (!url.endsWith('/api')) {
+        url = `${url}/api`;
+      }
+      return url;
+    }
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return 'http://localhost:5000/api';
+    }
+    return '/api';
+  };
+
+  axios.defaults.baseURL = getBaseURL();
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+  }, []);
 
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      // Fetch user profile or restore from stored info
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
         setUser(JSON.parse(savedUser));
       } else {
-        // If we have a token but no user, logout to be safe
         logout();
       }
     } else {
@@ -29,7 +49,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
     }
     setLoading(false);
-  }, [token]);
+  }, [token, logout]);
 
   const login = async (email, password) => {
     try {
@@ -43,6 +63,9 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return userData;
     } catch (error) {
+      if (!error.response) {
+        throw 'Cannot reach the server. Make sure the backend is running on port 5000.';
+      }
       throw error.response?.data?.message || 'Login failed';
     }
   };
@@ -101,13 +124,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-  };
-
   const value = {
     user,
     token,
@@ -118,7 +134,7 @@ export const AuthProvider = ({ children }) => {
     requestPasswordReset,
     resetPassword,
     logout,
-    isAuthenticated: !!user,
+    isAuthenticated: Boolean(token && user),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

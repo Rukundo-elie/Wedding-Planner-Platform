@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Heart, Sparkles, ShieldCheck, BadgeDollarSign, Compass, Calendar, ArrowRight, Star, Plus } from 'lucide-react';
 import WeddingRingIcon from '../components/WeddingRingIcon';
 import { useAuth } from '../contexts/AuthContext';
+import { scrollToSection } from '../utils/scrollToSection';
+import { getPackageImage } from '../utils/packageImages';
 
 const Home = () => {
   const { isAuthenticated } = useAuth();
+  const location = useLocation();
   const [packages, setPackages] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,19 +32,18 @@ const Home = () => {
     fetchData();
   }, []);
 
-  // Handle hash scroll transitions
   useEffect(() => {
-    if (window.location.hash) {
-      const timer = setTimeout(() => {
-        const id = window.location.hash.substring(1);
-        const element = document.getElementById(id);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 100);
+    if (location.pathname !== '/') return undefined;
+
+    if (location.hash) {
+      const id = location.hash.substring(1);
+      const timer = setTimeout(() => scrollToSection(id), loading ? 300 : 100);
       return () => clearTimeout(timer);
     }
-  }, [window.location.hash, loading]);
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return undefined;
+  }, [location.pathname, location.hash, loading]);
 
   return (
     <div className="bg-rose-50/20 min-h-screen">
@@ -72,12 +74,13 @@ const Home = () => {
                   <span>Start Planning Free</span>
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <a
-                  href="#packages"
+                <button
+                  type="button"
+                  onClick={() => scrollToSection('packages')}
                   className="rounded-full bg-white border border-gray-200 px-8 py-3.5 text-base font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition flex items-center"
                 >
                   View Packages
-                </a>
+                </button>
               </div>
             </div>
 
@@ -151,7 +154,7 @@ const Home = () => {
       </section>
 
       {/* Packages Section */}
-      <section id="packages" className="py-24 sm:py-32">
+      <section id="packages" className="py-24 sm:py-32 scroll-mt-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center space-y-4 mb-16">
             <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">Curated Wedding Packages</h2>
@@ -166,16 +169,31 @@ const Home = () => {
             </div>
           ) : (
             <div className="mx-auto grid max-w-md grid-cols-1 gap-8 lg:max-w-none lg:grid-cols-3">
-              {packages.map((pkg) => (
+              {packages.map((pkg) => {
+                const packageImage = getPackageImage(pkg);
+
+                return (
                 <div key={pkg.id} className="flex flex-col justify-between overflow-hidden rounded-3xl bg-white shadow-xl shadow-gray-100 border border-gray-100 transform hover:scale-[1.02] transition duration-300">
                   <div>
-                    {pkg.image ? (
-                      <div className="h-52 w-full overflow-hidden">
-                        <img src={pkg.image} alt={pkg.name} className="w-full h-full object-cover" />
+                    {packageImage ? (
+                      <div className="h-52 w-full overflow-hidden bg-gradient-to-br from-slate-800 via-purple-900 to-rose-900">
+                        <img
+                          src={packageImage}
+                          alt={pkg.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            if (pkg.name.toLowerCase().includes('diamond')) {
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800';
+                            } else {
+                              e.currentTarget.style.display = 'none';
+                            }
+                          }}
+                        />
                       </div>
                     ) : (
-                      <div className="h-52 w-full bg-rose-50/40 flex items-center justify-center border-b border-rose-100/50">
-                        <WeddingRingIcon className="h-20 w-20" />
+                      <div className="h-52 w-full bg-gradient-to-br from-rose-100 via-rose-50 to-amber-50 flex items-center justify-center border-b border-rose-100/50">
+                        <WeddingRingIcon className="h-20 w-20 text-rose-400" />
                       </div>
                     )}
                     <div className="p-8">
@@ -191,21 +209,22 @@ const Home = () => {
                   </div>
                   <div className="p-8 pt-0">
                     <Link
-                      to={isAuthenticated ? `/client?selectPackage=${pkg.id}` : `/login?redirect=/client?selectPackage=${pkg.id}`}
+                      to={isAuthenticated ? `/client?selectPackage=${pkg.id}` : `/login?redirect=${encodeURIComponent(`/client?selectPackage=${pkg.id}`)}`}
                       className="block w-full text-center rounded-full bg-rose-600 py-3 text-sm font-bold text-white shadow hover:bg-rose-500 transition-colors"
                     >
                       Book Package
                     </Link>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </section>
 
       {/* Vendor marketplace preview */}
-      <section id="marketplace" className="py-20 bg-rose-50/40 border-t border-rose-100">
+      <section id="marketplace" className="py-20 bg-rose-50/40 border-t border-rose-100 scroll-mt-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center space-y-4 mb-16">
             <h2 className="text-3xl font-extrabold tracking-tight text-gray-900">Featured Vendors</h2>
@@ -237,7 +256,7 @@ const Home = () => {
       </section>
 
       {/* About Us Section */}
-      <section id="about" className="py-24 sm:py-32 bg-white">
+      <section id="about" className="py-24 sm:py-32 bg-white scroll-mt-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-5 relative">
@@ -263,7 +282,7 @@ const Home = () => {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-24 bg-rose-50/20 border-t border-rose-100">
+      <section id="contact" className="py-24 bg-rose-50/20 border-t border-rose-100 scroll-mt-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center space-y-4 mb-16">
             <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">Get In Touch</h2>
