@@ -14,6 +14,37 @@ const Home = () => {
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Contact Us Form States
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactStatus, setContactStatus] = useState({ type: '', text: '' });
+  const [submittingContact, setSubmittingContact] = useState(false);
+
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setContactStatus({ type: '', text: '' });
+    setSubmittingContact(true);
+    try {
+      const response = await axios.post('/contact', {
+        name: contactName,
+        email: contactEmail,
+        message: contactMessage
+      });
+      setContactStatus({ type: 'success', text: response.data.message });
+      setContactName('');
+      setContactEmail('');
+      setContactMessage('');
+    } catch (err) {
+      setContactStatus({ 
+        type: 'error', 
+        text: err.response?.data?.message || 'Failed to send message. Please try again.' 
+      });
+    } finally {
+      setSubmittingContact(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -290,12 +321,22 @@ const Home = () => {
           </div>
 
           <div className="mx-auto max-w-xl bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-            <form onSubmit={(e) => { e.preventDefault(); alert('Message sent successfully! Our planners will contact you shortly.'); }} className="space-y-6">
+            {contactStatus.text && (
+              <div className={`mb-6 p-4 rounded-xl text-sm border flex items-center gap-2.5 ${
+                contactStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
+              }`}>
+                <span>{contactStatus.text}</span>
+              </div>
+            )}
+            
+            <form onSubmit={handleContactSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Your Name</label>
                 <input
                   type="text"
                   required
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
                   placeholder="Elie Elie"
                 />
@@ -305,6 +346,8 @@ const Home = () => {
                 <input
                   type="email"
                   required
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
                   placeholder="elie@example.com"
                 />
@@ -314,15 +357,18 @@ const Home = () => {
                 <textarea
                   required
                   rows={4}
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
                   placeholder="Tell us about your wedding plans..."
                 />
               </div>
               <button
                 type="submit"
-                className="w-full rounded-2xl bg-rose-600 py-3.5 px-4 text-sm font-bold text-white shadow-lg shadow-rose-200 hover:bg-rose-505 transition"
+                disabled={submittingContact}
+                className="w-full rounded-2xl bg-rose-600 py-3.5 px-4 text-sm font-bold text-white shadow-lg shadow-rose-200 hover:bg-rose-505 transition disabled:bg-rose-400"
               >
-                Send Message
+                {submittingContact ? 'Sending...' : 'Send Message'}
               </button>
             </form>
           </div>

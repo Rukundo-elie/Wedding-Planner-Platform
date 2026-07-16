@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   TrendingUp, Package, Briefcase, Plus, 
-  Trash2, Award, Users, AlertCircle 
+  Trash2, Award, Users, AlertCircle, Mail 
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -10,6 +10,7 @@ const AdminDashboard = () => {
   const [reports, setReports] = useState(null);
   const [packages, setPackages] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [contactMessages, setContactMessages] = useState([]);
   
   // Package form state
   const [pkgForm, setPkgForm] = useState({ id: null, name: '', description: '', price: '', image: '' });
@@ -28,14 +29,16 @@ const AdminDashboard = () => {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [reportsRes, pkgsRes, vendorsRes] = await Promise.all([
+      const [reportsRes, pkgsRes, vendorsRes, contactRes] = await Promise.all([
         axios.get('/reports'),
         axios.get('/packages'),
-        axios.get('/vendors')
+        axios.get('/vendors'),
+        axios.get('/contact')
       ]);
       setReports(reportsRes.data);
       setPackages(pkgsRes.data);
       setVendors(vendorsRes.data);
+      setContactMessages(contactRes.data);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to retrieve administrator analytics.');
@@ -172,6 +175,16 @@ const AdminDashboard = () => {
           >
             <Briefcase className="h-5 w-5" />
             <span>Manage Vendors</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('inquiries')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+              activeTab === 'inquiries' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Mail className="h-5 w-5" />
+            <span>Contact Inquiries</span>
           </button>
         </div>
 
@@ -479,6 +492,58 @@ const AdminDashboard = () => {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: CONTACT INQUIRIES */}
+          {activeTab === 'inquiries' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center border-b pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Contact Inquiries</h2>
+                  <p className="text-gray-500 text-xs mt-1">Review contact messages submitted by potential clients from the landing page.</p>
+                </div>
+                <span className="bg-rose-50 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-2xl border border-rose-100/50">
+                  {contactMessages.length} Messages
+                </span>
+              </div>
+
+              {contactMessages.length === 0 ? (
+                <div className="text-center py-20 text-gray-400 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+                  <Mail className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm font-semibold">No inquiries received yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {contactMessages.map((msg) => (
+                    <div key={msg.id} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm space-y-4 hover:border-rose-100 transition">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-gray-50">
+                        <div>
+                          <h4 className="font-extrabold text-gray-900 text-base">{msg.name}</h4>
+                          <span className="text-xs font-semibold text-rose-600">{msg.email}</span>
+                        </div>
+                        <span className="text-xs text-gray-400 font-semibold">
+                          {new Date(msg.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                        {msg.message}
+                      </p>
+
+                      <div className="flex justify-end pt-2">
+                        <a
+                          href={`mailto:${msg.email}?subject=Wedding Inquiry Response`}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 text-xs font-bold transition shadow-sm"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          <span>Reply via Email</span>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
