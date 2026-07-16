@@ -3,7 +3,7 @@ const { Resend } = require('resend');
 const sendInquiryEmail = async (contactData) => {
   const { name, email, subject, message } = contactData;
 
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendApiKey = process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.split('#')[0].trim() : null;
   const fromEmail = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || 'onboarding@resend.dev';
   const receiverEmail = process.env.PLANNER_RECEIVER_EMAIL || process.env.CONTACT_RECIPIENTS;
 
