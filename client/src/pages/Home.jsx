@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import emailjs from '@emailjs/browser';
 import { Heart, Sparkles, ShieldCheck, BadgeDollarSign, Compass, Calendar, ArrowRight, Star, Plus } from 'lucide-react';
 import WeddingRingIcon from '../components/WeddingRingIcon';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,6 +35,34 @@ const Home = () => {
         subject: contactSubject,
         message: contactMessage
       });
+
+      // Send the email notification via EmailJS directly from the browser
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+      if (serviceId && templateId && publicKey && !serviceId.includes('here')) {
+        try {
+          await emailjs.send(
+            serviceId,
+            templateId,
+            {
+              from_name: contactName,
+              from_email: contactEmail,
+              subject: contactSubject,
+              message: contactMessage,
+              to_email: 'elierukundo6@gmail.com'
+            },
+            publicKey
+          );
+          console.log('[EmailJS Success]: Contact inquiry email sent via EmailJS');
+        } catch (emailjsErr) {
+          console.error('[EmailJS Error]: Failed to send email via EmailJS:', emailjsErr);
+        }
+      } else {
+        console.warn('[EmailJS Warning]: EmailJS keys not configured in client environment variables. Skipping frontend email dispatch.');
+      }
+
       setContactName('');
       setContactEmail('');
       setContactSubject('');
