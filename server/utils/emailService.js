@@ -4,8 +4,8 @@ const sendInquiryEmail = async (contactData) => {
   const { name, email, subject, message } = contactData;
 
   const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-  const receiverEmail = process.env.PLANNER_RECEIVER_EMAIL;
+  const fromEmail = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || 'onboarding@resend.dev';
+  const receiverEmail = process.env.PLANNER_RECEIVER_EMAIL || process.env.CONTACT_RECIPIENTS;
 
   // Defensive check: Skip sending if Resend API key is not specified
   if (!resendApiKey) {
@@ -14,15 +14,16 @@ const sendInquiryEmail = async (contactData) => {
   }
 
   if (!receiverEmail) {
-    console.warn('[Email Warning]: PLANNER_RECEIVER_EMAIL is not configured in your .env. Notification email sending skipped.');
+    console.warn('[Email Warning]: PLANNER_RECEIVER_EMAIL or CONTACT_RECIPIENTS is not configured in your .env. Notification email sending skipped.');
     return false;
   }
 
   try {
     const resend = new Resend(resendApiKey);
+    const fromAddress = fromEmail.includes('<') ? fromEmail : `Wedding Planner Platform <${fromEmail}>`;
 
     const emailResponse = await resend.emails.send({
-      from: `Wedding Planner Platform <${fromEmail}>`,
+      from: fromAddress,
       to: receiverEmail,
       replyTo: email, // Clicking "Reply" in your email client will email the sender directly
       subject: `💍 Wedding Inquiry: ${subject} (from ${name})`,
