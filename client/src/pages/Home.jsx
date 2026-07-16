@@ -57,8 +57,10 @@ const Home = () => {
               user_email: contactEmail,
               sender_email: contactEmail,
               
-              subject: contactSubject,
+              subject: `${contactSubject} (via Wedding Planner Platform)`,
               message: contactMessage,
+              source: 'Wedding Planner Platform',
+              platform: 'Wedding Planner Platform',
               to_email: 'elierukundo6@gmail.com'
             },
             publicKey
