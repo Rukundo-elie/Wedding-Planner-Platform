@@ -58,7 +58,7 @@ const Home = () => {
               sender_email: contactEmail,
               
               subject: `${contactSubject} (via Wedding Planner Platform)`,
-              message: contactMessage,
+              message: `[Submitted via Wedding Planner Platform]\nSubject: ${contactSubject}\n-------------------------------------------\n${contactMessage}`,
               source: 'Wedding Planner Platform',
               platform: 'Wedding Planner Platform',
               to_email: 'elierukundo6@gmail.com'
