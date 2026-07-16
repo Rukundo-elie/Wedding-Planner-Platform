@@ -48,7 +48,15 @@ const Home = () => {
             templateId,
             {
               from_name: contactName,
+              name: contactName,
+              user_name: contactName,
+              sender_name: contactName,
+              
               from_email: contactEmail,
+              email: contactEmail,
+              user_email: contactEmail,
+              sender_email: contactEmail,
+              
               subject: contactSubject,
               message: contactMessage,
               to_email: 'elierukundo6@gmail.com'
