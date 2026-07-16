@@ -1,11 +1,16 @@
 // server/config/email.js
 const { Resend } = require('resend');
 
-// Initialize Resend with your API key from environment variables
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const sendContactEmail = async (contactData) => {
   const { name, email, phone, subject, message } = contactData;
+
+  const resendApiKey = process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.split('#')[0].trim() : '';
+  if (!resendApiKey) {
+    console.warn('[Email Warning]: RESEND_API_KEY is not configured in your .env. Email notification was skipped.');
+    return { success: false, error: 'Missing API Key' };
+  }
+
+  const resend = new Resend(resendApiKey);
 
   // Get admin/planner recipients from environment variables
   const adminEmails = process.env.CONTACT_RECIPIENTS
