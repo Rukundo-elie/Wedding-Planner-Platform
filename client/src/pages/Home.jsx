@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Heart, Sparkles, ShieldCheck, BadgeDollarSign, Compass, Calendar, ArrowRight, Star, Plus } from 'lucide-react';
 import WeddingRingIcon from '../components/WeddingRingIcon';
@@ -8,6 +8,7 @@ import { scrollToSection } from '../utils/scrollToSection';
 import { getPackageImage } from '../utils/packageImages';
 
 const Home = () => {
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const location = useLocation();
   const [packages, setPackages] = useState([]);
@@ -31,10 +32,10 @@ const Home = () => {
         email: contactEmail,
         message: contactMessage
       });
-      setContactStatus({ type: 'success', text: response.data.message });
       setContactName('');
       setContactEmail('');
       setContactMessage('');
+      navigate('/contact-success');
     } catch (err) {
       setContactStatus({ 
         type: 'error', 
