@@ -1,3 +1,4 @@
+const { sendContactEmail } = require('../config/email');
 const prisma = require('../config/db');
 const { sendInquiryEmail } = require('../utils/emailService');
 

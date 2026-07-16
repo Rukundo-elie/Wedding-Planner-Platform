@@ -1,33 +1,28 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const sendInquiryEmail = async (contactData) => {
   const { name, email, subject, message } = contactData;
 
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT || 587;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const receiverEmail = process.env.PLANNER_RECEIVER_EMAIL || smtpUser;
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const receiverEmail = process.env.PLANNER_RECEIVER_EMAIL;
 
-  // Defensive check: Skip sending if credentials are not specified
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    console.warn('[Email Warning]: SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASS) are not fully configured in your .env. The message was saved to the database, but notification email sending was skipped.');
+  // Defensive check: Skip sending if Resend API key is not specified
+  if (!resendApiKey) {
+    console.warn('[Email Warning]: RESEND_API_KEY is not configured in your .env. The message was saved to the database, but notification email sending was skipped.');
+    return false;
+  }
+
+  if (!receiverEmail) {
+    console.warn('[Email Warning]: PLANNER_RECEIVER_EMAIL is not configured in your .env. Notification email sending skipped.');
     return false;
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: parseInt(smtpPort),
-      secure: parseInt(smtpPort) === 465, // True for 465, false for other ports
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
-    });
+    const resend = new Resend(resendApiKey);
 
-    const mailOptions = {
-      from: `"Wedding Planner Platform" <${smtpUser}>`,
+    const emailResponse = await resend.emails.send({
+      from: `Wedding Planner Platform <${fromEmail}>`,
       to: receiverEmail,
       replyTo: email, // Clicking "Reply" in your email client will email the sender directly
       subject: `💍 Wedding Inquiry: ${subject} (from ${name})`,
@@ -69,13 +64,17 @@ To respond to this customer, simply click "Reply" to this email.`,
           </div>
         </div>
       `
-    };
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('[Email Success]: Inquiry notification email sent successfully:', info.messageId);
+    if (emailResponse.error) {
+      console.error('[Email Error]: Resend API returned an error:', emailResponse.error);
+      return false;
+    }
+
+    console.log('[Email Success]: Inquiry notification email sent successfully via Resend:', emailResponse.data?.id);
     return true;
   } catch (error) {
-    console.error('[Email Error]: Failed to send notification email:', error);
+    console.error('[Email Error]: Failed to send notification email via Resend:', error);
     return false;
   }
 };
