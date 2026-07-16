@@ -1,6 +1,4 @@
-const { sendContactEmail } = require('../config/email');
 const prisma = require('../config/db');
-const { sendInquiryEmail } = require('../utils/emailService');
 
 // Create a new contact inquiry
 const createContactMessage = async (req, res) => {
@@ -18,11 +16,6 @@ const createContactMessage = async (req, res) => {
         subject,
         message
       }
-    });
-
-    // Fire email sending asynchronously in the background
-    sendInquiryEmail({ name, email, subject, message }).catch(err => {
-      console.error('Asynchronous email trigger failed:', err);
     });
 
     res.status(201).json({ message: 'Thank you! Your message has been received. Our planners will contact you shortly.', contact });
