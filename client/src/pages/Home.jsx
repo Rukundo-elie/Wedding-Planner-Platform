@@ -18,6 +18,7 @@ const Home = () => {
   // Contact Us Form States
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [contactSubject, setContactSubject] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [contactStatus, setContactStatus] = useState({ type: '', text: '' });
   const [submittingContact, setSubmittingContact] = useState(false);
@@ -30,10 +31,12 @@ const Home = () => {
       const response = await axios.post('/contact', {
         name: contactName,
         email: contactEmail,
+        subject: contactSubject,
         message: contactMessage
       });
       setContactName('');
       setContactEmail('');
+      setContactSubject('');
       setContactMessage('');
       navigate('/contact-success');
     } catch (err) {
@@ -351,6 +354,17 @@ const Home = () => {
                   onChange={(e) => setContactEmail(e.target.value)}
                   className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
                   placeholder="elie@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Subject</label>
+                <input
+                  type="text"
+                  required
+                  value={contactSubject}
+                  onChange={(e) => setContactSubject(e.target.value)}
+                  className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                  placeholder="Wedding Package Inquiry / Custom Booking Help"
                 />
               </div>
               <div>

@@ -4,22 +4,23 @@ const { sendInquiryEmail } = require('../utils/emailService');
 // Create a new contact inquiry
 const createContactMessage = async (req, res) => {
   try {
-    const { name, email, message } = req.body;
+    const { name, email, subject, message } = req.body;
     
-    if (!name || !email || !message) {
-      return res.status(400).json({ message: 'Name, email, and message are required.' });
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ message: 'Name, email, subject, and message are required.' });
     }
 
     const contact = await prisma.contactMessage.create({
       data: {
         name,
         email: email.trim().toLowerCase(),
+        subject,
         message
       }
     });
 
     // Fire email sending asynchronously in the background
-    sendInquiryEmail({ name, email, message }).catch(err => {
+    sendInquiryEmail({ name, email, subject, message }).catch(err => {
       console.error('Asynchronous email trigger failed:', err);
     });
 

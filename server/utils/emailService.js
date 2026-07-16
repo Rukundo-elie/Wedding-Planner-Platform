@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 
 const sendInquiryEmail = async (contactData) => {
-  const { name, email, message } = contactData;
+  const { name, email, subject, message } = contactData;
 
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT || 587;
@@ -30,7 +30,7 @@ const sendInquiryEmail = async (contactData) => {
       from: `"Wedding Planner Platform" <${smtpUser}>`,
       to: receiverEmail,
       replyTo: email, // Clicking "Reply" in your email client will email the sender directly
-      subject: `💍 New Wedding Inquiry: ${name}`,
+      subject: `💍 Wedding Inquiry: ${subject} (from ${name})`,
       text: `Hello Planner,
 
 You have received a new contact inquiry from the Wedding Planner & Budget Management Platform:
@@ -38,6 +38,7 @@ You have received a new contact inquiry from the Wedding Planner & Budget Manage
 --------------------------------------------------
 Sender Name: ${name}
 Sender Email: ${email}
+Subject Line: ${subject}
 Received At: ${new Date().toLocaleString()}
 --------------------------------------------------
 
@@ -56,6 +57,7 @@ To respond to this customer, simply click "Reply" to this email.`,
           <div style="background-color: #fff1f2; border-left: 4px solid #f43f5e; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
             <p style="margin: 0; font-size: 14px;"><strong>Sender Name:</strong> ${name}</p>
             <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Sender Email:</strong> <a href="mailto:${email}" style="color: #db2777; text-decoration: none;">${email}</a></p>
+            <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Subject Line:</strong> ${subject}</p>
             <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Received At:</strong> ${new Date().toLocaleString()}</p>
           </div>
           

@@ -527,14 +527,21 @@ const AdminDashboard = () => {
                         </span>
                       </div>
                       
-                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                        {msg.message}
-                      </p>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-[10px] bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded-full border border-rose-100/30">
+                            Subject: {msg.subject}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {msg.message}
+                        </p>
+                      </div>
 
                       <div className="flex justify-end pt-2">
                         <a
-                          href={`mailto:${msg.email}?subject=Wedding Inquiry Response`}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 text-xs font-bold transition shadow-sm"
+                          href={`mailto:${msg.email}?subject=RE: ${encodeURIComponent(msg.subject)}`}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 hover:bg-rose-505 text-white px-4 py-2 text-xs font-bold transition shadow-sm"
                         >
                           <Mail className="h-3.5 w-3.5" />
                           <span>Reply via Email</span>
