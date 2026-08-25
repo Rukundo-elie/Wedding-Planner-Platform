@@ -27,24 +27,33 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchAdminData = async () => {
-    try {
-      setLoading(true);
-      const [reportsRes, pkgsRes, vendorsRes, contactRes] = await Promise.all([
-        axios.get('/reports'),
-        axios.get('/packages'),
-        axios.get('/vendors'),
-        axios.get('/contact')
-      ]);
-      setReports(reportsRes.data);
-      setPackages(pkgsRes.data);
-      setVendors(vendorsRes.data);
-      setContactMessages(contactRes.data);
-    } catch (err) {
-      console.error(err);
-      showNotification('error', 'Failed to retrieve administrator analytics.');
-    } finally {
-      setLoading(false);
+    setLoading(true);
+
+    const [reportsResult, packagesResult, vendorsResult, contactResult] = await Promise.allSettled([
+      axios.get('/reports'),
+      axios.get('/packages'),
+      axios.get('/vendors'),
+      axios.get('/contact')
+    ]);
+
+    if (reportsResult.status === 'fulfilled') setReports(reportsResult.value.data);
+    if (packagesResult.status === 'fulfilled') setPackages(packagesResult.value.data);
+    if (vendorsResult.status === 'fulfilled') setVendors(vendorsResult.value.data);
+    if (contactResult.status === 'fulfilled') setContactMessages(contactResult.value.data);
+
+    const failedSections = [
+      reportsResult.status === 'rejected' && 'analytics',
+      packagesResult.status === 'rejected' && 'packages',
+      vendorsResult.status === 'rejected' && 'vendors',
+      contactResult.status === 'rejected' && 'contact messages',
+    ].filter(Boolean);
+
+    if (failedSections.length > 0) {
+      console.error('Admin data could not be loaded:', failedSections);
+      showNotification('error', `Could not load: ${failedSections.join(', ')}. Other sections are still available.`);
     }
+
+    setLoading(false);
   };
 
   const showNotification = (type, text) => {
@@ -353,6 +362,11 @@ const AdminDashboard = () => {
                     </div>
                   ))}
                 </div>
+                {packages.length === 0 && (
+                  <p className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
+                    No packages are available yet. Create a package using the form above.
+                  </p>
+                )}
               </div>
             </div>
           )}
