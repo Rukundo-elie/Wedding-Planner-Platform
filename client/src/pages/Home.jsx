@@ -2,11 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import emailjs from '@emailjs/browser';
-import { Heart, Sparkles, ShieldCheck, BadgeDollarSign, Compass, Calendar, ArrowRight, Star, Plus } from 'lucide-react';
+import { Heart, Sparkles, ShieldCheck, BadgeDollarSign, Compass, Calendar, ArrowRight, Star, Plus, Check } from 'lucide-react';
 import WeddingRingIcon from '../components/WeddingRingIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { scrollToSection } from '../utils/scrollToSection';
 import { getPackageImage } from '../utils/packageImages';
+
+const packagePresentation = (name = '') => {
+  const packageName = name.toLowerCase();
+
+  if (packageName.includes('diamond')) {
+    return {
+      badge: 'Most luxurious',
+      accent: 'from-violet-700 via-purple-700 to-rose-600',
+      highlights: [
+        'Everything in Gold Package',
+        'Premium floral decoration',
+        'Cinematic videography',
+        'Catering for up to 250 guests',
+        'Five-tier wedding cake',        
+        'Live band performance',
+      ],
+    };
+  }
+
+  if (packageName.includes('gold')) {
+    return {
+      badge: 'Most popular',
+      accent: 'from-amber-500 via-orange-500 to-rose-500',
+      highlights: [
+        'Everything in Silver Package',
+        'Full-service catering for up to 100 guests',
+        'Transport cars for the couple',
+        'Three-tier wedding cake',
+        'Professional bridal makeup and hair',
+      ],
+    };
+  }
+
+  return {
+    badge: 'Best for intimate weddings',
+    accent: 'from-slate-600 via-slate-700 to-rose-700',
+    highlights: [
+      'Venue decoration',
+      'Professional photography for up to 6 hours',
+      'DJ and sound system',
+      'Two-tier wedding cake',
+    ],
+  };
+};
 
 const Home = () => {
   const navigate = useNavigate();
@@ -245,49 +289,58 @@ const Home = () => {
             <div className="mx-auto grid max-w-md grid-cols-1 gap-8 lg:max-w-none lg:grid-cols-3">
               {packages.map((pkg) => {
                 const packageImage = getPackageImage(pkg);
+                const presentation = packagePresentation(pkg.name);
 
                 return (
-                <div key={pkg.id} className="flex flex-col justify-between overflow-hidden rounded-3xl bg-white shadow-xl shadow-gray-100 border border-gray-100 transform hover:scale-[1.02] transition duration-300">
-                  <div>
+                <div key={pkg.id} className="flex flex-col overflow-hidden rounded-3xl border border-rose-100/80 bg-white shadow-[0_16px_45px_rgba(136,19,55,0.09)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_24px_55px_rgba(136,19,55,0.17)]">
+                  <div className="h-52 overflow-hidden bg-gradient-to-br from-slate-800 via-purple-900 to-rose-900">
                     {packageImage ? (
-                      <div className="h-52 w-full overflow-hidden bg-gradient-to-br from-slate-800 via-purple-900 to-rose-900">
-                        <img
-                          src={packageImage}
-                          alt={pkg.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            if (pkg.name.toLowerCase().includes('diamond')) {
-                              e.currentTarget.src = 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800';
-                            } else {
-                              e.currentTarget.style.display = 'none';
-                            }
-                          }}
-                        />
-                      </div>
+                      <img
+                        src={packageImage}
+                        alt={pkg.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          if (pkg.name.toLowerCase().includes('diamond')) {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800';
+                          } else {
+                            e.currentTarget.style.display = 'none';
+                          }
+                        }}
+                      />
                     ) : (
-                      <div className="h-52 w-full bg-gradient-to-br from-rose-100 via-rose-50 to-amber-50 flex items-center justify-center border-b border-rose-100/50">
+                      <div className="flex h-full items-center justify-center border-b border-rose-100/50 bg-gradient-to-br from-rose-100 via-rose-50 to-amber-50">
                         <WeddingRingIcon className="h-20 w-20 text-rose-400" />
                       </div>
                     )}
-                    <div className="p-8">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{pkg.name}</h3>
-                      <p className="text-sm text-gray-500 mb-6 leading-relaxed min-h-[72px]">{pkg.description}</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-extrabold tracking-tight text-gray-950">
-                          {pkg.price.toLocaleString()}
-                        </span>
-                        <span className="text-sm font-semibold text-gray-500">RWF</span>
-                      </div>
-                    </div>
                   </div>
-                  <div className="p-8 pt-0">
+                  <div className="flex flex-1 flex-col p-7">
+                    <h3 className="mb-5 text-2xl font-extrabold text-gray-900">{pkg.name}</h3>
+                    <p className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-gray-500">Package highlights</p>
+                    <ul className="space-y-2.5">
+                      {presentation.highlights.map((highlight) => (
+                        <li key={highlight} className="flex items-center gap-2.5 text-sm font-medium text-gray-700">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-rose-600"><Check className="h-3.5 w-3.5" strokeWidth={3} /></span>
+                          {highlight}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-auto pt-7">
+                      <div className="mb-5 flex items-end justify-between">
+                        <div>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-extrabold tracking-tight text-gray-950">{pkg.price.toLocaleString()}</span>
+                            <span className="text-sm font-bold text-gray-500">RWF</span>
+                          </div>
+                        </div>
+                      </div>
                     <Link
                       to={isAuthenticated ? `/client?selectPackage=${pkg.id}` : `/login?redirect=${encodeURIComponent(`/client?selectPackage=${pkg.id}`)}`}
-                      className="block w-full text-center rounded-full bg-rose-600 py-3 text-sm font-bold text-white shadow hover:bg-rose-500 transition-colors"
+                      className="flex w-full items-center justify-center gap-2 rounded-full bg-rose-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-200 transition-all hover:bg-rose-500 hover:shadow-xl"
                     >
-                      Book Package
+                      Book Package <ArrowRight className="h-4 w-4" />
                     </Link>
+                    </div>
                   </div>
                 </div>
                 );
