@@ -162,7 +162,7 @@ const Home = () => {
             <div className="lg:col-span-5 relative">
               <div className="aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border-4 border-white transform hover:rotate-1 transition duration-500">
                 <img
-                  src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800"
+                  src="https://png.pngtree.com/png-clipart/20241110/original/pngtree-bride-and-groom-wedding-clipart-transparent-free-png-image_16829454.png"
                   alt="Wedding celebration"
                   className="w-full h-full object-cover"
                 />

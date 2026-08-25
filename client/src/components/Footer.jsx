@@ -53,7 +53,7 @@ const Footer = () => {
             <h3 className="text-white font-semibold text-sm mb-4">Contact Us</h3>
             <ul className="space-y-2 text-sm">
               <li>Email: contact@weddingplanner.rw</li>
-              <li>Phone: +250 788 001 001</li>
+              <li>Phone: +250 788 516 370</li>
               <li>Office: KN 4 Rd, Kigali, Rwanda</li>
             </ul>
           </div>

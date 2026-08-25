@@ -14,19 +14,19 @@ const seedDatabase = async () => {
           {
             name: 'Silver Package',
             description: 'Essential wedding planning package. Includes venue decoration, professional photography (up to 6 hours), sound system with DJ, and a 2-tier wedding cake. Perfect for small, intimate gatherings.',
-            price: 1500000.0,
+            price: 15000000.0,
             image: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800',
           },
           {
             name: 'Gold Package',
             description: 'Comprehensive planning package. Includes everything in Silver, plus full-service catering for up to 100 guests, transport cars for the couple, 3-tier wedding cake, and professional makeup and hair for the bride.',
-            price: 3500000.0,
+            price: 20000000.0,
             image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=800',
           },
           {
             name: 'Diamond Package',
             description: 'Ultimate all-inclusive luxury wedding package. Includes premium floral decoration, professional photography and cinematic videography, catering for up to 250 guests, luxury wedding fleet (Mercedes/Range Rover), 5-tier cake, makeup, and live band performance.',
-            price: 6000000.0,
+            price: 50000000.0,
             image: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800',
           },
         ],
