@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Calculator, Calendar, CreditCard, CheckSquare,
-  MessageSquare, Send, Bell, Award, Smile
+  MessageSquare, Send, Bell, Award, Smile, Download, CheckCircle, RefreshCw
 } from 'lucide-react';
 import { readImageFile } from '../utils/cropCoverImage';
 import CoverPhotoEditor from '../components/CoverPhotoEditor';
@@ -21,9 +21,34 @@ const ClientDashboard = () => {
   const [selectedPkgId, setSelectedPkgId] = useState('');
   const [targetBudget, setTargetBudget] = useState('5000000');
   
-  // Payment state
-  const [payMethod, setPayMethod] = useState('MoMo');
-  const [payingBookingId, setPayingBookingId] = useState(null);
+  // Interactive Payments State
+  const [payments, setPayments] = useState([]);
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payBooking, setPayBooking] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('MOMO'); // 'MOMO', 'AIRTEL', 'CARD', 'BANK'
+  const [phoneNum, setPhoneNum] = useState(user.phone || '');
+  
+  // Card details state
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  
+  // Bank transfer details state
+  const [bankReference, setBankReference] = useState('');
+  const [bankSlipBase64, setBankSlipBase64] = useState('');
+  
+  // Verification dialog states
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [momoUssdPrompt, setMomoUssdPrompt] = useState(false);
+  const [momoPin, setMomoPin] = useState('');
+  
+  // Processing screens
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [processingStep, setProcessingStep] = useState('');
+  const [newlyCreatedPayment, setNewlyCreatedPayment] = useState(null);
 
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -58,12 +83,14 @@ const ClientDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, pkgsRes] = await Promise.all([
+      const [bookingsRes, pkgsRes, paymentsRes] = await Promise.all([
         axios.get('/bookings'),
-        axios.get('/packages')
+        axios.get('/packages'),
+        axios.get('/payments')
       ]);
       setBookings(bookingsRes.data);
       setPackages(pkgsRes.data);
+      setPayments(paymentsRes.data);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to load dashboard data.');
@@ -127,20 +154,249 @@ const ClientDashboard = () => {
     }
   };
 
-  const handlePayment = async (bookingId) => {
-    const booking = bookings.find(b => b.id === bookingId);
+  // Start checkout sequence
+  const startCheckout = (booking) => {
+    setPayBooking(booking);
+    setPaymentMethod('MOMO');
+    setPhoneNum(user.phone || '');
+    setCardName('');
+    setCardNumber('');
+    setCardExpiry('');
+    setCardCvv('');
+    setBankReference('');
+    setBankSlipBase64('');
+    setOtpSent(false);
+    setMomoUssdPrompt(false);
+    setPaymentProcessing(false);
+    setPaymentSuccess(false);
+    setNewlyCreatedPayment(null);
+    setShowPayModal(true);
+  };
+
+  const handleBankSlipUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      return showNotification('error', 'Please upload a valid image (PNG/JPG) of the bank slip.');
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setBankSlipBase64(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Main payment dispatch
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!payBooking) return;
+
+    setPaymentProcessing(true);
+
     try {
+      if (paymentMethod === 'MOMO' || paymentMethod === 'AIRTEL') {
+        if (!phoneNum) {
+          setPaymentProcessing(false);
+          return showNotification('error', 'Phone number is required.');
+        }
+        setProcessingStep('Connecting to Mobile Money Gateway...');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        setProcessingStep('Sending USSD balance authorization request...');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        setPaymentProcessing(false);
+        setMomoUssdPrompt(true);
+        return;
+      }
+
+      if (paymentMethod === 'CARD') {
+        if (!cardNumber || !cardName || !cardExpiry || !cardCvv) {
+          setPaymentProcessing(false);
+          return showNotification('error', 'Please fill in all credit card details.');
+        }
+        setProcessingStep('Authorizing credit card parameters...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setProcessingStep('Verifying 3D Secure bank portals...');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        setPaymentProcessing(false);
+        setOtpSent(true);
+        return;
+      }
+
+      if (paymentMethod === 'BANK') {
+        if (!bankReference || !bankSlipBase64) {
+          setPaymentProcessing(false);
+          return showNotification('error', 'Bank reference and slip image upload are required.');
+        }
+        setProcessingStep('Saving Bank Transfer slip details...');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+        const response = await axios.post('/payments', {
+          bookingId: payBooking.id,
+          amount: payBooking.budget,
+          method: 'BankTransfer',
+          transactionId: bankReference,
+          slipImage: bankSlipBase64
+        });
+
+        setNewlyCreatedPayment(response.data.payment);
+        setPaymentProcessing(false);
+        setPaymentSuccess(true);
+        fetchDashboardData();
+      }
+    } catch (err) {
+      setPaymentProcessing(false);
+      showNotification('error', err.response?.data?.message || 'Payment submission failed.');
+    }
+  };
+
+  // Confirm MoMo PIN
+  const handleMomoPinSubmit = async () => {
+    if (!momoPin) return;
+    setMomoUssdPrompt(false);
+    setPaymentProcessing(true);
+    setProcessingStep('Verifying authorization PIN with Mobile Provider...');
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
       const response = await axios.post('/payments', {
-        bookingId,
-        amount: booking.budget,
-        method: payMethod
+        bookingId: payBooking.id,
+        amount: payBooking.budget,
+        method: paymentMethod,
+        transactionId: `MOMO-${Date.now()}-${Math.floor(Math.random() * 10000)}`
       });
-      showNotification('success', response.data.message);
-      setPayingBookingId(null);
+
+      setNewlyCreatedPayment(response.data.payment);
+      setPaymentProcessing(false);
+      setPaymentSuccess(true);
       fetchDashboardData();
     } catch (err) {
-      showNotification('error', err.response?.data?.message || 'Payment failed.');
+      setPaymentProcessing(false);
+      showNotification('error', err.response?.data?.message || 'Mobile Money payment declined.');
     }
+  };
+
+  // Confirm Card OTP
+  const handleOtpSubmit = async () => {
+    if (!otpCode) return;
+    setOtpSent(false);
+    setPaymentProcessing(true);
+    setProcessingStep('Confirming one-time passcode with bank servers...');
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await axios.post('/payments', {
+        bookingId: payBooking.id,
+        amount: payBooking.budget,
+        method: 'Card',
+        transactionId: `CARD-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      });
+
+      setNewlyCreatedPayment(response.data.payment);
+      setPaymentProcessing(false);
+      setPaymentSuccess(true);
+      fetchDashboardData();
+    } catch (err) {
+      setPaymentProcessing(false);
+      showNotification('error', err.response?.data?.message || 'Bank OTP validation failed.');
+    }
+  };
+
+  // Print receipt locally in the browser
+  const downloadReceipt = (payment) => {
+    const printWindow = window.open('', '_blank');
+    const receiptNo = `REC-${new Date(payment.createdAt).getFullYear()}-${String(payment.id).padStart(4, '0')}`;
+    const formattedDate = new Date(payment.createdAt).toLocaleDateString(undefined, {
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Receipt ${receiptNo}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; margin: 0; padding: 40px; line-height: 1.5; }
+            .receipt-box { max-width: 800px; margin: auto; border: 1px solid #eee; padding: 40px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fce7f3; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo { font-size: 24px; font-weight: bold; color: #db2777; }
+            .title { font-size: 20px; text-transform: uppercase; letter-spacing: 1px; font-weight: 800; color: #4b5563; }
+            .details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+            .details div { flex: 1; }
+            .details .right { text-align: right; }
+            .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            .table th { background-color: #f9fafb; font-weight: bold; text-align: left; padding: 12px; border-bottom: 1px solid #e5e7eb; }
+            .table td { padding: 12px; border-bottom: 1px solid #f3f4f6; }
+            .total-section { display: flex; justify-content: flex-end; font-size: 18px; font-weight: bold; border-top: 2px solid #e5e7eb; padding-top: 15px; }
+            .paid-seal { display: inline-block; border: 3px double #059669; color: #059669; font-weight: bold; text-transform: uppercase; padding: 8px 16px; border-radius: 8px; font-size: 20px; transform: rotate(-8deg); opacity: 0.85; margin-top: 20px; }
+            .footer { text-align: center; font-size: 12px; color: #9ca3af; margin-top: 50px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-box">
+            <div class="header">
+              <div class="logo">💍 Wedding Planner</div>
+              <div class="title">Official Payment Receipt</div>
+            </div>
+            
+            <div class="details">
+              <div>
+                <strong>Billed To:</strong><br>
+                ${user.name}<br>
+                ${user.email}<br>
+                ${user.phone || ''}
+              </div>
+              <div class="right">
+                <strong>Receipt Details:</strong><br>
+                Receipt No: ${receiptNo}<br>
+                Transaction ID: ${payment.transactionId}<br>
+                Payment Date: ${formattedDate}<br>
+                Method: ${payment.method}
+              </div>
+            </div>
+            
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th style="text-align: right;">Amount (RWF)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Wedding Planning & Coordination Services Plan: <strong>${payment.booking?.package?.name || 'Custom Budget Plan'}</strong></td>
+                  <td style="text-align: right;">${payment.amount.toLocaleString()} RWF</td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <div class="total-section">
+              <span>Total Paid: &nbsp; &nbsp; &nbsp; &nbsp; <strong>${payment.amount.toLocaleString()} RWF</strong></span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+               <div class="paid-seal">PAID &amp; VERIFIED</div>
+               <div style="font-size: 11px; text-align: right; color: #6b7280;">
+                 Wedding Planner Platform Ltd<br>
+                 Kigali, Rwanda
+               </div>
+            </div>
+            
+            <div class="footer">
+              Thank you for choosing our services. Wishing you a beautiful wedding preparation journey!
+            </div>
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const saveCoverPhoto = async (bookingId, imageData) => {
@@ -237,6 +493,287 @@ const ClientDashboard = () => {
         </div>
       )}
 
+      {/* Interactive Payment Gateway Modal */}
+      {showPayModal && payBooking && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-6 text-white relative">
+              <h3 className="text-xl font-bold">Secure Checkout</h3>
+              <p className="text-rose-100 text-xs mt-1">Select payment method & complete transaction</p>
+              <button 
+                onClick={() => setShowPayModal(false)}
+                className="absolute top-6 right-6 text-white/80 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Processing Steps */}
+            {paymentProcessing && (
+              <div className="p-12 flex flex-col items-center justify-center space-y-4">
+                <RefreshCw className="h-12 w-12 animate-spin text-rose-600" />
+                <h4 className="font-bold text-gray-800">Processing Payment...</h4>
+                <p className="text-sm text-gray-500 text-center">{processingStep}</p>
+              </div>
+            )}
+
+            {/* Simulated MOMO Pin Dialer screen */}
+            {momoUssdPrompt && (
+              <div className="p-8 space-y-6 text-center">
+                <div className="mx-auto w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center border border-amber-200">
+                  <span className="text-2xl text-amber-500">📱</span>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-gray-800 text-lg">USSD Mobile Authorization</h4>
+                  <p className="text-sm text-gray-500">
+                    A simulated USSD push message was sent to <strong>{phoneNum}</strong>. Please enter your Mobile Money PIN code below to confirm this transaction.
+                  </p>
+                </div>
+                <div className="max-w-[200px] mx-auto">
+                  <input
+                    type="password"
+                    maxLength={5}
+                    value={momoPin}
+                    onChange={(e) => setMomoPin(e.target.value)}
+                    className="block w-full text-center text-2xl tracking-widest rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:border-rose-500 focus:outline-none"
+                    placeholder="•••••"
+                  />
+                </div>
+                <button
+                  onClick={handleMomoPinSubmit}
+                  disabled={momoPin.length < 4}
+                  className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition disabled:opacity-55"
+                >
+                  Authorize Amount ({payBooking.budget.toLocaleString()} RWF)
+                </button>
+              </div>
+            )}
+
+            {/* Simulated Card OTP Validation */}
+            {otpSent && (
+              <div className="p-8 space-y-6 text-center">
+                <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-200">
+                  <span className="text-2xl text-emerald-500">🔐</span>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-gray-800 text-lg">3D Secure Card Verification</h4>
+                  <p className="text-sm text-gray-500">
+                    Please enter the 6-digit verification passcode sent via SMS to verify ownership of this card.
+                  </p>
+                </div>
+                <div className="max-w-[200px] mx-auto">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="block w-full text-center text-xl font-bold tracking-widest rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:border-rose-500 focus:outline-none"
+                    placeholder="000000"
+                  />
+                </div>
+                <button
+                  onClick={handleOtpSubmit}
+                  disabled={otpCode.length < 6}
+                  className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition disabled:opacity-55"
+                >
+                  Verify and Pay
+                </button>
+              </div>
+            )}
+
+            {/* Success Screen */}
+            {paymentSuccess && (
+              <div className="p-8 text-center space-y-6">
+                <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-12 w-12 text-emerald-600" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-2xl font-bold text-gray-900">Payment Approved!</h4>
+                  <p className="text-sm text-gray-500">
+                    {paymentMethod === 'BANK'
+                      ? 'Your bank slip has been uploaded successfully. Planners will verify the transaction balance shortly.'
+                      : 'Congratulations! Your transaction was approved and your booking status is now confirmed.'}
+                  </p>
+                </div>
+
+                {newlyCreatedPayment && newlyCreatedPayment.status === 'PAID' && (
+                  <button
+                    onClick={() => downloadReceipt(newlyCreatedPayment)}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition"
+                  >
+                    <Download className="h-4 w-4" />
+                    Print / Download Receipt
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setShowPayModal(false)}
+                  className="w-full rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 px-4 text-sm transition"
+                >
+                  Close Receipt Screen
+                </button>
+              </div>
+            )}
+
+            {/* General form */}
+            {!paymentProcessing && !momoUssdPrompt && !otpSent && !paymentSuccess && (
+              <form onSubmit={handlePaymentSubmit} className="p-6 space-y-6">
+                {/* Method selector tabs */}
+                <div className="grid grid-cols-4 gap-2 border-b pb-4">
+                  {[
+                    { id: 'MOMO', name: 'MTN MoMo', icon: '📞' },
+                    { id: 'AIRTEL', name: 'Airtel Money', icon: '📱' },
+                    { id: 'CARD', name: 'Card', icon: '💳' },
+                    { id: 'BANK', name: 'Bank BK', icon: '🏛️' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(tab.id)}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-bold transition ${
+                        paymentMethod === tab.id 
+                          ? 'border-rose-500 bg-rose-50/50 text-rose-600' 
+                          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-lg mb-1">{tab.icon}</span>
+                      <span>{tab.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Amount detail */}
+                <div className="bg-gray-50 p-4 rounded-2xl flex justify-between items-center text-sm font-semibold">
+                  <span className="text-gray-500">Checkout Amount:</span>
+                  <span className="text-gray-900 font-extrabold text-lg">{payBooking.budget.toLocaleString()} RWF</span>
+                </div>
+
+                {/* MTN/Airtel Fields */}
+                {(paymentMethod === 'MOMO' || paymentMethod === 'AIRTEL') && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                        Mobile Phone Number
+                      </label>
+                      <input
+                        type="text"
+                        value={phoneNum}
+                        onChange={(e) => setPhoneNum(e.target.value)}
+                        placeholder="e.g. +250 788 123 456"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Card Fields */}
+                {paymentMethod === 'CARD' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                        Cardholder Name
+                      </label>
+                      <input
+                        type="text"
+                        value={cardName}
+                        onChange={(e) => setCardName(e.target.value)}
+                        placeholder="e.g. RUKUNDO ELIE"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                        Card Number
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={19}
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        placeholder="4000 1234 5678 9010"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          Expiry Date
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={5}
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                          placeholder="MM/YY"
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none text-center"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          CVV / Security Code
+                        </label>
+                        <input
+                          type="password"
+                          maxLength={3}
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value)}
+                          placeholder="•••"
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none text-center"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Transfer fields */}
+                {paymentMethod === 'BANK' && (
+                  <div className="space-y-4">
+                    <div className="bg-rose-50/30 border border-rose-100 p-4 rounded-2xl space-y-2 text-xs">
+                      <p className="font-bold text-gray-700">Bank Details for Direct Deposit:</p>
+                      <p><strong>Bank:</strong> Bank of Kigali (BK)</p>
+                      <p><strong>Account Name:</strong> Wedding Planner Platform Ltd</p>
+                      <p><strong>Account Number:</strong> 00095-07712345-88</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                        Bank Transaction Reference / Slip ID
+                      </label>
+                      <input
+                        type="text"
+                        value={bankReference}
+                        onChange={(e) => setBankReference(e.target.value)}
+                        placeholder="BK-TX-xxxx"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                        Upload Receipt Slip Image (Proof)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBankSlipUpload}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-4 px-4 text-sm shadow-lg shadow-rose-200 transition"
+                >
+                  Pay {payBooking.budget.toLocaleString()} RWF
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-gray-900">Welcome, {user.name}</h1>
         <p className="text-gray-500 text-sm">Here is your wedding planning control board.</p>
@@ -271,6 +808,15 @@ const ClientDashboard = () => {
           >
             <Calendar className="h-5 w-5" />
             <span>Book Services</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('billing')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+              activeTab === 'billing' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <CreditCard className="h-5 w-5" />
+            <span>Billing & Receipts</span>
           </button>
           {activeBooking && (
             <button
@@ -376,43 +922,12 @@ const ClientDashboard = () => {
                     </div>
 
                     {activeBooking.paymentStatus !== 'PAID' && (
-                      <div>
-                        {payingBookingId === activeBooking.id ? (
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={payMethod}
-                              onChange={(e) => setPayMethod(e.target.value)}
-                              className="rounded-xl border border-gray-300 py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                            >
-                              <option value="MoMo">MTN MoMo</option>
-                              <option value="AirtelMoney">Airtel Money</option>
-                              <option value="Card">Visa/Mastercard</option>
-                            </select>
-                            <button
-                              onClick={() => handlePayment(activeBooking.id)}
-                              className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-500 transition"
-                            >
-                              Confirm Pay
-                            </button>
-                            <button
-                              onClick={() => setPayingBookingId(null)}
-                              className="text-sm font-bold text-gray-500 hover:text-gray-700 px-2"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setPayingBookingId(activeBooking.id);
-                              setPayMethod('MoMo');
-                            }}
-                            className="rounded-2xl bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 text-sm font-bold shadow-md shadow-rose-200 transition"
-                          >
-                            Pay Online Now
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => startCheckout(activeBooking)}
+                        className="rounded-2xl bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 text-sm font-bold shadow-md shadow-rose-200 transition hover:scale-[1.01]"
+                      >
+                        Pay Online Now
+                      </button>
                     )}
                   </div>
                 </div>
@@ -528,7 +1043,80 @@ const ClientDashboard = () => {
             </div>
           )}
 
-          {/* TAB 4: TASKS */}
+          {/* TAB 4: BILLING & RECEIPTS */}
+          {activeTab === 'billing' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 border-b pb-4">Billing & Receipt Ledger</h2>
+              {payments.length === 0 ? (
+                <div className="text-center py-12 space-y-4">
+                  <p className="text-gray-500 text-sm">No payment records found.</p>
+                  {activeBooking && activeBooking.paymentStatus !== 'PAID' && (
+                    <button
+                      onClick={() => startCheckout(activeBooking)}
+                      className="rounded-full bg-rose-600 text-white px-6 py-2.5 text-sm font-bold hover:bg-rose-500 transition"
+                    >
+                      Process Pending Invoice Now
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-100 text-sm">
+                    <thead>
+                      <tr className="text-left font-semibold text-gray-400 bg-gray-50/50">
+                        <th className="py-3 px-4">Receipt Ref</th>
+                        <th className="py-3 px-4">Method</th>
+                        <th className="py-3 px-4">Transaction ID</th>
+                        <th className="py-3 px-4">Amount</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-center">Receipt Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 font-medium">
+                      {payments.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50/30 transition text-gray-700">
+                          <td className="py-4 px-4 font-bold text-gray-900">
+                            REC-{new Date(p.createdAt).getFullYear()}-{String(p.id).padStart(4, '0')}
+                          </td>
+                          <td className="py-4 px-4 text-xs font-bold text-gray-500">{p.method}</td>
+                          <td className="py-4 px-4 font-mono text-xs">{p.transactionId}</td>
+                          <td className="py-4 px-4 font-extrabold text-gray-950">{p.amount.toLocaleString()} RWF</td>
+                          <td className="py-4 px-4">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              p.status === 'PAID' 
+                                ? 'bg-emerald-50 text-emerald-700' 
+                                : p.status === 'FAILED'
+                                ? 'bg-red-50 text-red-700'
+                                : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            {p.status === 'PAID' ? (
+                              <button
+                                onClick={() => downloadReceipt(p)}
+                                className="inline-flex items-center gap-1 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-3 py-1.5 rounded-full transition"
+                              >
+                                <Download className="h-3 w-3" />
+                                Download Receipt
+                              </button>
+                            ) : p.status === 'PENDING' ? (
+                              <span className="text-xs text-amber-500 font-semibold italic">Awaiting Admin Verification</span>
+                            ) : (
+                              <span className="text-xs text-red-500 font-semibold">Payment Declined</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: TASKS */}
           {activeTab === 'tasks' && activeBooking && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900 border-b pb-4">Wedding Planning Checklist</h2>
@@ -547,7 +1135,7 @@ const ClientDashboard = () => {
             </div>
           )}
 
-          {/* TAB 5: CHAT */}
+          {/* TAB 6: CHAT */}
           {activeTab === 'chat' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900 border-b pb-4">Chat with Wedding Planner</h2>

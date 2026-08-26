@@ -109,6 +109,7 @@ model Payment {
   method        String        // MoMo, AirtelMoney, Visa, Card
   transactionId String        @unique
   status        PaymentStatus @default(PENDING)
+  slipImage     String?       @db.LongText
   createdAt     DateTime      @default(now())
 }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   TrendingUp, Package, Briefcase, Plus, 
-  Trash2, Award, Users, AlertCircle, Mail 
+  Trash2, Award, Users, AlertCircle, Mail, CreditCard 
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -11,6 +11,7 @@ const AdminDashboard = () => {
   const [packages, setPackages] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [contactMessages, setContactMessages] = useState([]);
+  const [payments, setPayments] = useState([]);
   
   // Package form state
   const [pkgForm, setPkgForm] = useState({ id: null, name: '', description: '', price: '', image: '' });
@@ -29,16 +30,18 @@ const AdminDashboard = () => {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [reportsRes, pkgsRes, vendorsRes, contactRes] = await Promise.all([
+      const [reportsRes, pkgsRes, vendorsRes, contactRes, paymentsRes] = await Promise.all([
         axios.get('/reports'),
         axios.get('/packages'),
         axios.get('/vendors'),
-        axios.get('/contact')
+        axios.get('/contact'),
+        axios.get('/payments')
       ]);
       setReports(reportsRes.data);
       setPackages(pkgsRes.data);
       setVendors(vendorsRes.data);
       setContactMessages(contactRes.data);
+      setPayments(paymentsRes.data);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to retrieve administrator analytics.');
@@ -120,6 +123,29 @@ const AdminDashboard = () => {
     }
   };
 
+  // Handle Verify & Reject Payments
+  const handleVerifyPayment = async (paymentId) => {
+    if (!window.confirm('Are you sure you want to verify and confirm this payment?')) return;
+    try {
+      const res = await axios.patch(`/payments/${paymentId}/verify`);
+      showNotification('success', res.data.message || 'Payment verified and booking confirmed!');
+      fetchAdminData();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Verification failed.');
+    }
+  };
+
+  const handleRejectPayment = async (paymentId) => {
+    if (!window.confirm('Are you sure you want to reject this payment?')) return;
+    try {
+      const res = await axios.patch(`/payments/${paymentId}/reject`);
+      showNotification('success', res.data.message || 'Payment marked as rejected.');
+      fetchAdminData();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Rejection failed.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
@@ -178,6 +204,16 @@ const AdminDashboard = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('payments')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+              activeTab === 'payments' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <CreditCard className="h-5 w-5" />
+            <span>Verify Payments</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('inquiries')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'inquiries' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
@@ -198,57 +234,13 @@ const AdminDashboard = () => {
               
               {/* Analytics grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="bg-rose-50/30 p-6 rounded-2xl border border-rose-100/50">
-                  <div className="text-xs text-rose-500 font-bold uppercase tracking-wider mb-1">Total Platform Revenue</div>
-                  <div className="text-3xl font-extrabold text-gray-900">{reports.totalRevenue.toLocaleString()} RWF</div>
+                <div className="bg-emerald-50/20 border border-emerald-100 p-6 rounded-2xl">
+                  <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Total Revenue</div>
+                  <div className="text-3xl font-extrabold text-gray-900">{reports.revenue.toLocaleString()} RWF</div>
                 </div>
-
-                <div className="bg-rose-50/30 p-6 rounded-2xl border border-rose-100/50">
-                  <div className="text-xs text-rose-500 font-bold uppercase tracking-wider mb-1">Total Wedding Bookings</div>
-                  <div className="text-3xl font-extrabold text-gray-900">{reports.totalBookings} Bookings</div>
-                </div>
-              </div>
-
-              {/* Status and User details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="bg-gray-50 p-5 rounded-2xl">
-                  <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">Bookings By Status</h3>
-                  <div className="space-y-2">
-                    {reports.bookingsByStatus.map((statusObj, idx) => (
-                      <div key={idx} className="flex justify-between text-sm font-semibold">
-                        <span className="text-gray-500">{statusObj.status}</span>
-                        <span className="text-gray-950">{statusObj._count.id}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 p-5 rounded-2xl">
-                  <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">Users By Role</h3>
-                  <div className="space-y-2">
-                    {reports.usersByRole.map((roleObj, idx) => (
-                      <div key={idx} className="flex justify-between text-sm font-semibold">
-                        <span className="text-gray-500">{roleObj.role}</span>
-                        <span className="text-gray-950">{roleObj._count.id}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Bookings */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Recent Orders</h3>
-                <div className="border border-gray-100 rounded-2xl divide-y divide-gray-100 overflow-hidden">
-                  {reports.recentBookings.map((b) => (
-                    <div key={b.id} className="p-4 text-sm flex justify-between items-center hover:bg-gray-50/50">
-                      <div>
-                        <div className="font-bold text-gray-950">{b.user.name}</div>
-                        <div className="text-xs text-gray-400 font-semibold">{b.package ? b.package.name : 'Custom Plan'}</div>
-                      </div>
-                      <span className="font-extrabold text-gray-800">{b.budget.toLocaleString()} RWF</span>
-                    </div>
-                  ))}
+                <div className="bg-rose-50/20 border border-rose-100 p-6 rounded-2xl">
+                  <div className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Total Bookings</div>
+                  <div className="text-3xl font-extrabold text-gray-900">{reports.bookingsCount} Weddings</div>
                 </div>
               </div>
             </div>
@@ -257,102 +249,94 @@ const AdminDashboard = () => {
           {/* TAB 2: MANAGE PACKAGES */}
           {activeTab === 'packages' && (
             <div className="space-y-8">
-              <h2 className="text-xl font-bold text-gray-900 border-b pb-4">
-                {pkgForm.id ? 'Edit Package Inclusions' : 'Create New Wedding Package'}
-              </h2>
-
-              {/* Form */}
-              <form onSubmit={handlePkgSubmit} className="space-y-4 max-w-lg bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Package Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={pkgForm.name}
-                      onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Price (RWF)</label>
-                    <input
-                      type="number"
-                      required
-                      value={pkgForm.price}
-                      onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Image URL</label>
-                  <input
-                    type="text"
-                    value={pkgForm.image}
-                    onChange={(e) => setPkgForm({ ...pkgForm, image: e.target.value })}
-                    className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    placeholder="https://..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Description Inclusions</label>
-                  <textarea
-                    required
-                    value={pkgForm.description}
-                    onChange={(e) => setPkgForm({ ...pkgForm, description: e.target.value })}
-                    rows={3}
-                    className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex gap-2 justify-end">
-                  {pkgForm.id && (
-                    <button
-                      type="button"
-                      onClick={() => setPkgForm({ id: null, name: '', description: '', price: '', image: '' })}
-                      className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-500 transition"
-                  >
-                    {pkgForm.id ? 'Save Changes' : 'Create Package'}
-                  </button>
-                </div>
-              </form>
+              <div className="flex justify-between items-center border-b pb-4">
+                <h2 className="text-xl font-bold text-gray-900">Wedding Packages</h2>
+                <span className="bg-rose-50 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-2xl border border-rose-100/50">
+                  {packages.length} Packages Available
+                </span>
+              </div>
 
               {/* Package list */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Packages List</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {packages.map((pkg) => (
-                    <div key={pkg.id} className="border border-gray-100 rounded-2xl p-5 flex flex-col justify-between hover:shadow-sm">
-                      <div>
-                        <h4 className="font-extrabold text-gray-900">{pkg.name}</h4>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{pkg.description}</p>
-                        <span className="inline-block mt-3 text-sm font-extrabold text-rose-600">{pkg.price.toLocaleString()} RWF</span>
-                      </div>
-                      <div className="flex gap-2 justify-end mt-4 pt-3 border-t border-gray-50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {packages.map((pkg) => (
+                  <div key={pkg.id} className="border border-gray-100 rounded-3xl p-6 space-y-4 shadow-sm relative group bg-white hover:border-rose-100 transition">
+                    <div>
+                      <h4 className="font-extrabold text-gray-900 text-lg">{pkg.name}</h4>
+                      <p className="text-gray-500 text-xs mt-1">{pkg.description}</p>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="font-extrabold text-rose-600 text-base">{pkg.price.toLocaleString()} RWF</span>
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => setPkgForm({ id: pkg.id, name: pkg.name, description: pkg.description, price: pkg.price, image: pkg.image || '' })}
-                          className="text-xs text-gray-600 hover:text-rose-600 font-semibold"
+                          onClick={() => setPkgForm(pkg)}
+                          className="rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-1.5 text-xs font-bold transition"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handlePkgDelete(pkg.id)}
-                          className="text-xs text-red-600 font-semibold"
+                          className="rounded-full bg-gray-50 hover:bg-red-50 hover:text-red-600 text-gray-400 p-2 transition"
                         >
-                          Delete
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Package form */}
+              <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-6">
+                <h3 className="font-bold text-gray-900 mb-4">{pkgForm.id ? 'Edit Package Inclusions' : 'Create New Inclusions Package'}</h3>
+                <form onSubmit={handlePkgSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Package Name</label>
+                    <input
+                      type="text"
+                      value={pkgForm.name}
+                      onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })}
+                      placeholder="e.g. Diamond Luxury"
+                      className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Description / Inclusions</label>
+                    <textarea
+                      value={pkgForm.description}
+                      onChange={(e) => setPkgForm({ ...pkgForm, description: e.target.value })}
+                      placeholder="List venues, food, decoration, services..."
+                      rows={3}
+                      className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Pricing Rate (RWF)</label>
+                    <input
+                      type="number"
+                      value={pkgForm.price}
+                      onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })}
+                      placeholder="10,000,000"
+                      className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    {pkgForm.id && (
+                      <button
+                        type="button"
+                        onClick={() => setPkgForm({ id: null, name: '', description: '', price: '', image: '' })}
+                        className="rounded-2xl bg-gray-200 text-gray-700 py-3 px-6 text-sm font-bold transition"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="rounded-2xl bg-rose-600 text-white py-3 px-6 text-sm font-bold hover:bg-rose-500 transition shadow-md shadow-rose-100"
+                    >
+                      {pkgForm.id ? 'Save Changes' : 'Publish Package'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
@@ -360,142 +344,242 @@ const AdminDashboard = () => {
           {/* TAB 3: MANAGE VENDORS */}
           {activeTab === 'vendors' && (
             <div className="space-y-8">
-              <h2 className="text-xl font-bold text-gray-900 border-b pb-4">
-                {vendorForm.id ? 'Edit Vendor Details' : 'Add New Vendor'}
-              </h2>
+              <div className="flex justify-between items-center border-b pb-4">
+                <h2 className="text-xl font-bold text-gray-900">Platform Vendors</h2>
+                <span className="bg-rose-50 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-2xl border border-rose-100/50">
+                  {vendors.length} Registered Listings
+                </span>
+              </div>
 
-              {/* Form */}
-              <form onSubmit={handleVendorSubmit} className="space-y-4 max-w-lg bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Vendor Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={vendorForm.name}
-                      onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Service category</label>
-                    <select
-                      value={vendorForm.service}
-                      onChange={(e) => setVendorForm({ ...vendorForm, service: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    >
-                      <option value="Venue">Venue</option>
-                      <option value="Decorator">Decorator</option>
-                      <option value="Caterer">Caterer</option>
-                      <option value="Photographer">Photographer</option>
-                      <option value="DJ">DJ</option>
-                      <option value="Transport">Transport</option>
-                      <option value="Makeup Artist">Makeup Artist</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Starting Price (RWF)</label>
-                    <input
-                      type="number"
-                      required
-                      value={vendorForm.price}
-                      onChange={(e) => setVendorForm({ ...vendorForm, price: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={vendorForm.location}
-                      onChange={(e) => setVendorForm({ ...vendorForm, location: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                      placeholder="Kigali City"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Contact Phone</label>
-                    <input
-                      type="text"
-                      value={vendorForm.phone}
-                      onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Contact Email</label>
-                    <input
-                      type="email"
-                      value={vendorForm.email}
-                      onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
-                      className="block w-full rounded-xl border border-gray-300 bg-white py-2 px-3 text-sm focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 justify-end">
-                  {vendorForm.id && (
-                    <button
-                      type="button"
-                      onClick={() => setVendorForm({ id: null, name: '', service: 'Venue', price: '', location: '', phone: '', email: '' })}
-                      className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-505 transition"
-                  >
-                    {vendorForm.id ? 'Save Changes' : 'Add Vendor'}
-                  </button>
-                </div>
-              </form>
-
-              {/* Vendor directory list */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Vendor Marketplace List</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {vendors.map((vendor) => (
-                    <div key={vendor.id} className="border border-gray-100 rounded-2xl p-5 hover:shadow-sm">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-extrabold text-gray-900">{vendor.name}</h4>
-                        <span className="text-[10px] bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded-full">{vendor.service}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{vendor.location || 'Kigali, Rwanda'}</p>
-                      
-                      <div className="flex justify-between items-end mt-4 pt-3 border-t border-gray-50">
-                        <span className="text-xs font-extrabold text-gray-900">{vendor.price.toLocaleString()} RWF</span>
-                        
-                        <div className="flex gap-2">
+              {/* Vendor table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100 text-sm">
+                  <thead>
+                    <tr className="text-left font-semibold text-gray-400">
+                      <th className="py-3 px-4">Vendor Details</th>
+                      <th className="py-3 px-4">Service</th>
+                      <th className="py-3 px-4">Starting Price</th>
+                      <th className="py-3 px-4">Location</th>
+                      <th className="py-3 px-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {vendors.map((v) => (
+                      <tr key={v.id} className="hover:bg-gray-50/30 transition text-gray-700">
+                        <td className="py-4 px-4 font-bold text-gray-900">
+                          <div>{v.name}</div>
+                          <div className="text-xs text-gray-400 font-normal">{v.email || 'No email'} | {v.phone || 'No phone'}</div>
+                        </td>
+                        <td className="py-4 px-4"><span className="text-xs font-bold bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full">{v.service}</span></td>
+                        <td className="py-4 px-4 font-bold text-gray-900">{v.price.toLocaleString()} RWF</td>
+                        <td className="py-4 px-4 text-gray-500">{v.location || 'N/A'}</td>
+                        <td className="py-4 px-4 text-center space-x-2">
                           <button
-                            onClick={() => setVendorForm({ id: vendor.id, name: vendor.name, service: vendor.service, price: vendor.price, location: vendor.location || '', phone: vendor.phone || '', email: vendor.email || '' })}
-                            className="text-xs text-gray-600 hover:text-rose-600 font-semibold"
+                            onClick={() => setVendorForm(v)}
+                            className="text-xs text-rose-600 font-bold hover:underline"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => handleVendorDelete(vendor.id)}
-                            className="text-xs text-red-600 font-semibold"
+                            onClick={() => handleVendorDelete(v.id)}
+                            className="text-xs text-red-500 font-bold hover:underline"
                           >
                             Remove
                           </button>
-                        </div>
-                      </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Vendor form */}
+              <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-6">
+                <h3 className="font-bold text-gray-900 mb-4">{vendorForm.id ? 'Edit Vendor Info' : 'Register New Vendor Account'}</h3>
+                <form onSubmit={handleVendorSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Vendor/Business Name</label>
+                      <input
+                        type="text"
+                        value={vendorForm.name}
+                        onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
+                        placeholder="e.g. Kigali Convention Center"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none animate-none"
+                      />
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Service Type Category</label>
+                      <select
+                        value={vendorForm.service}
+                        onChange={(e) => setVendorForm({ ...vendorForm, service: e.target.value })}
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      >
+                        <option value="Venue">Venue / Halls</option>
+                        <option value="Catering">Catering & Cakes</option>
+                        <option value="Decoration">Florist & Decors</option>
+                        <option value="Photography">Photography & Videography</option>
+                        <option value="Transport">Luxury Car Rental</option>
+                        <option value="Entertainment">DJ & Sound Systems</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Starting Quote (RWF)</label>
+                      <input
+                        type="number"
+                        value={vendorForm.price}
+                        onChange={(e) => setVendorForm({ ...vendorForm, price: e.target.value })}
+                        placeholder="1,500,000"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Physical Location</label>
+                      <input
+                        type="text"
+                        value={vendorForm.location}
+                        onChange={(e) => setVendorForm({ ...vendorForm, location: e.target.value })}
+                        placeholder="e.g. Gasabo, Kigali"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Phone</label>
+                      <input
+                        type="text"
+                        value={vendorForm.phone}
+                        onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
+                        placeholder="+250 788..."
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Email</label>
+                      <input
+                        type="email"
+                        value={vendorForm.email}
+                        onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
+                        placeholder="info@business.com"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    {vendorForm.id && (
+                      <button
+                        type="button"
+                        onClick={() => setVendorForm({ id: null, name: '', service: 'Venue', price: '', location: '', phone: '', email: '' })}
+                        className="rounded-2xl bg-gray-200 text-gray-700 py-3 px-6 text-sm font-bold transition"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="rounded-2xl bg-rose-600 text-white py-3 px-6 text-sm font-bold hover:bg-rose-500 transition shadow-md shadow-rose-100"
+                    >
+                      {vendorForm.id ? 'Save Changes' : 'List Vendor Business'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
 
-          {/* TAB 4: CONTACT INQUIRIES */}
+          {/* TAB 4: VERIFY PAYMENTS */}
+          {activeTab === 'payments' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 border-b pb-4">Manage Platform Payments</h2>
+              {payments.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-8">No payments recorded on the platform yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-100 text-sm">
+                    <thead>
+                      <tr className="text-left font-semibold text-gray-400 bg-gray-50/50">
+                        <th className="py-3 px-4">Client</th>
+                        <th className="py-3 px-4">Package</th>
+                        <th className="py-3 px-4">Method</th>
+                        <th className="py-3 px-4">Transaction ID</th>
+                        <th className="py-3 px-4">Amount</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 font-medium">
+                      {payments.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50/30 transition text-gray-700">
+                          <td className="py-4 px-4">
+                            <div className="font-bold text-gray-900">{p.booking?.user?.name}</div>
+                            <div className="text-xs text-gray-400">{p.booking?.user?.email}</div>
+                          </td>
+                          <td className="py-4 px-4 text-xs font-bold text-gray-600">
+                            {p.booking?.package?.name || 'Custom Plan'}
+                          </td>
+                          <td className="py-4 px-4 text-xs font-bold text-gray-500">{p.method}</td>
+                          <td className="py-4 px-4 font-mono text-xs text-gray-900">
+                            {p.transactionId}
+                          </td>
+                          <td className="py-4 px-4 font-extrabold text-gray-900">{p.amount.toLocaleString()} RWF</td>
+                          <td className="py-4 px-4">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              p.status === 'PAID' 
+                                ? 'bg-emerald-50 text-emerald-700' 
+                                : p.status === 'FAILED'
+                                ? 'bg-red-50 text-red-700'
+                                : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-center space-y-2">
+                            {p.slipImage && (
+                              <a
+                                href={p.slipImage}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-3 py-1.5 rounded-full transition mr-2"
+                              >
+                                View BK Slip
+                              </a>
+                            )}
+                            {p.status === 'PENDING' && (
+                              <div className="inline-flex gap-2">
+                                <button
+                                  onClick={() => handleVerifyPayment(p.id)}
+                                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-full transition"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRejectPayment(p.id)}
+                                  className="text-xs bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-full transition"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            )}
+                            {p.status === 'PAID' && (
+                              <span className="text-xs text-emerald-600 font-bold">Verified & Approved</span>
+                            )}
+                            {p.status === 'FAILED' && (
+                              <span className="text-xs text-red-500 font-bold">Rejected</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: CONTACT INQUIRIES */}
           {activeTab === 'inquiries' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center border-b pb-4">
@@ -529,7 +613,7 @@ const AdminDashboard = () => {
                       
                       <div className="space-y-2">
                         <div>
-                          <span className="text-[10px] bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded-full border border-rose-100/30">
+                          <span className="text-xs bg-rose-50 text-rose-600 font-bold px-2.5 py-0.5 rounded-full border border-rose-100/30">
                             Subject: {msg.subject}
                           </span>
                         </div>
@@ -541,7 +625,7 @@ const AdminDashboard = () => {
                       <div className="flex justify-end pt-2">
                         <a
                           href={`mailto:${msg.email}?subject=RE: ${encodeURIComponent(msg.subject)}`}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 hover:bg-rose-505 text-white px-4 py-2 text-xs font-bold transition shadow-sm"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 text-xs font-bold transition shadow-sm"
                         >
                           <Mail className="h-3.5 w-3.5" />
                           <span>Reply via Email</span>
