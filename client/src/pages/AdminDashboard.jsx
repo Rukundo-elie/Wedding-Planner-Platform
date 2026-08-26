@@ -30,21 +30,33 @@ const AdminDashboard = () => {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [reportsRes, pkgsRes, vendorsRes, contactRes, paymentsRes] = await Promise.all([
-        axios.get('/reports'),
-        axios.get('/packages'),
-        axios.get('/vendors'),
-        axios.get('/contact'),
-        axios.get('/payments')
+      
+      const fetchResource = async (url) => {
+        try {
+          const res = await axios.get(url);
+          return res.data;
+        } catch (e) {
+          console.error(`Error loading ${url}:`, e);
+          return null;
+        }
+      };
+
+      const [reportsData, pkgsData, vendorsData, contactData, paymentsData] = await Promise.all([
+        fetchResource('/reports'),
+        fetchResource('/packages'),
+        fetchResource('/vendors'),
+        fetchResource('/contact'),
+        fetchResource('/payments')
       ]);
-      setReports(reportsRes.data);
-      setPackages(pkgsRes.data);
-      setVendors(vendorsRes.data);
-      setContactMessages(contactRes.data);
-      setPayments(paymentsRes.data);
+
+      if (reportsData) setReports(reportsData);
+      if (pkgsData) setPackages(pkgsData);
+      if (vendorsData) setVendors(vendorsData);
+      if (contactData) setContactMessages(contactData);
+      if (paymentsData) setPayments(paymentsData);
     } catch (err) {
       console.error(err);
-      showNotification('error', 'Failed to retrieve administrator analytics.');
+      showNotification('error', 'Failed to retrieve administrator data.');
     } finally {
       setLoading(false);
     }

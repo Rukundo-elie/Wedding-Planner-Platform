@@ -83,14 +83,26 @@ const ClientDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, pkgsRes, paymentsRes] = await Promise.all([
-        axios.get('/bookings'),
-        axios.get('/packages'),
-        axios.get('/payments')
+      
+      const fetchResource = async (url) => {
+        try {
+          const res = await axios.get(url);
+          return res.data;
+        } catch (e) {
+          console.error(`Error loading ${url}:`, e);
+          return null;
+        }
+      };
+
+      const [bookingsData, pkgsData, paymentsData] = await Promise.all([
+        fetchResource('/bookings'),
+        fetchResource('/packages'),
+        fetchResource('/payments')
       ]);
-      setBookings(bookingsRes.data);
-      setPackages(pkgsRes.data);
-      setPayments(paymentsRes.data);
+
+      if (bookingsData) setBookings(bookingsData);
+      if (pkgsData) setPackages(pkgsData);
+      if (paymentsData) setPayments(paymentsData);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to load dashboard data.');
