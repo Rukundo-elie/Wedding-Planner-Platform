@@ -21,30 +21,17 @@ const ClientDashboard = () => {
   const [selectedPkgId, setSelectedPkgId] = useState('');
   const [targetBudget, setTargetBudget] = useState('5000000');
   
-  // Interactive Payments State
+  // Payments state
   const [payments, setPayments] = useState([]);
-  const [showPayModal, setShowPayModal] = useState(false);
+  const [showManualPayModal, setShowManualPayModal] = useState(false);
   const [payBooking, setPayBooking] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('MOMO'); // 'MOMO', 'AIRTEL', 'CARD', 'BANK'
-  const [phoneNum, setPhoneNum] = useState(user.phone || '');
+  const [paymentMethod, setPaymentMethod] = useState('BANK');
   
-  // Card details state
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  
-  // Bank transfer details state
+  // Bank transfer details state (for manual pay fallback)
   const [bankReference, setBankReference] = useState('');
   const [bankSlipBase64, setBankSlipBase64] = useState('');
   
-  // Verification dialog states
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [momoUssdPrompt, setMomoUssdPrompt] = useState(false);
-  const [momoPin, setMomoPin] = useState('');
-  
-  // Processing screens
+  // Gateway status overlays
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
@@ -60,6 +47,19 @@ const ClientDashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [coverEditor, setCoverEditor] = useState(null);
   const [msg, setMsg] = useState({ type: '', text: '' });
+
+  // Dynamically inject Flutterwave Checkout Inline script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = "https://checkout.flutterwave.com/v3.js";
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -166,30 +166,84 @@ const ClientDashboard = () => {
     }
   };
 
-  // Start checkout sequence
-  const startCheckout = (booking) => {
+  // Launch Flutterwave Payment Gateway (MoMo / Airtel / Visa)
+  const handleOnlinePaymentCheckout = (booking) => {
+    if (typeof window.FlutterwaveCheckout === 'undefined') {
+      return showNotification('error', 'Online Payment gateway is still loading. Please try again in 5 seconds.');
+    }
+
+    const publicKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-e02fb57ad519f727c62b2e811e513812-X';
+
+    window.FlutterwaveCheckout({
+      public_key: publicKey,
+      tx_ref: `TXN-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      amount: booking.budget,
+      currency: 'RWF',
+      payment_options: 'card,mobilemoneyrwanda',
+      customer: {
+        email: user.email,
+        phone_number: user.phone || '',
+        name: user.name,
+      },
+      customizations: {
+        title: 'Wedding Planner Platform',
+        description: `Wedding Inclusions Plan Payment - Booking #${booking.id}`,
+        logo: 'https://cdn-icons-png.flaticon.com/512/3656/3656836.png',
+      },
+      callback: async (response) => {
+        console.log('[Flutterwave Transaction Finished]:', response);
+        
+        if (response.status === 'successful' || response.status === 'completed') {
+          // Open modal to display verification step
+          setPayBooking(booking);
+          setNewlyCreatedPayment(null);
+          setPaymentSuccess(false);
+          setPaymentProcessing(true);
+          setShowManualPayModal(false); // make sure BK modal is closed
+          setProcessingStep('Securing real-time verified transaction status with payment gateway...');
+
+          try {
+            const verifyRes = await axios.post('/payments/verify-flutterwave', {
+              transactionId: String(response.transaction_id || response.id),
+              bookingId: booking.id,
+              amount: booking.budget
+            });
+
+            setNewlyCreatedPayment(verifyRes.data.payment);
+            setPaymentProcessing(false);
+            setPaymentSuccess(true);
+            fetchDashboardData();
+            showNotification('success', verifyRes.data.message);
+          } catch (err) {
+            setPaymentProcessing(false);
+            showNotification('error', err.response?.data?.message || 'Verification failed.');
+          }
+        } else {
+          showNotification('error', 'Online payment checkout failed.');
+        }
+      },
+      onClose: () => {
+        console.log('Online checkout sheet dismissed');
+      }
+    });
+  };
+
+  // Launch manual uploader modal (Fallback BK slip deposit)
+  const startManualCheckout = (booking) => {
     setPayBooking(booking);
-    setPaymentMethod('MOMO');
-    setPhoneNum(user.phone || '');
-    setCardName('');
-    setCardNumber('');
-    setCardExpiry('');
-    setCardCvv('');
     setBankReference('');
     setBankSlipBase64('');
-    setOtpSent(false);
-    setMomoUssdPrompt(false);
     setPaymentProcessing(false);
     setPaymentSuccess(false);
     setNewlyCreatedPayment(null);
-    setShowPayModal(true);
+    setShowManualPayModal(true);
   };
 
   const handleProofSlipUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      return showNotification('error', 'Please upload a valid image (PNG/JPG) of the transaction slip or screenshot.');
+      return showNotification('error', 'Please upload a valid image (PNG/JPG) of the transaction slip.');
     }
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -198,25 +252,24 @@ const ClientDashboard = () => {
     reader.readAsDataURL(file);
   };
 
-  // Main payment proof dispatch
-  const handlePaymentSubmit = async (e) => {
+  const handleManualPaymentSubmit = async (e) => {
     e.preventDefault();
     if (!payBooking) return;
 
     if (!bankReference || !bankSlipBase64) {
-      return showNotification('error', 'Transaction Reference ID and Proof of Payment upload are required.');
+      return showNotification('error', 'Transaction reference and slip image upload are required.');
     }
 
     setPaymentProcessing(true);
-    setProcessingStep('Uploading transaction details and verification proof...');
+    setProcessingStep('Saving Bank Transfer slip details...');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 1200));
 
       const response = await axios.post('/payments', {
         bookingId: payBooking.id,
         amount: payBooking.budget,
-        method: paymentMethod,
+        method: 'BankTransfer',
         transactionId: bankReference,
         slipImage: bankSlipBase64
       });
@@ -227,7 +280,7 @@ const ClientDashboard = () => {
       fetchDashboardData();
     } catch (err) {
       setPaymentProcessing(false);
-      showNotification('error', err.response?.data?.message || 'Failed to submit payment details.');
+      showNotification('error', err.response?.data?.message || 'Payment submission failed.');
     }
   };
 
@@ -423,110 +476,31 @@ const ClientDashboard = () => {
         </div>
       )}
 
-      {/* Interactive Payment Gateway Modal */}
-      {showPayModal && payBooking && (
+      {/* Online Verification Status / Success Modal Overlay */}
+      {((paymentProcessing || paymentSuccess) && payBooking) && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-6 text-white relative">
-              <h3 className="text-xl font-bold">Secure Checkout</h3>
-              <p className="text-rose-100 text-xs mt-1">Select payment method & complete transaction</p>
-              <button 
-                onClick={() => setShowPayModal(false)}
-                className="absolute top-6 right-6 text-white/80 hover:text-white text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Processing Steps */}
+          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 p-8 text-center animate-in fade-in zoom-in-95 duration-200">
             {paymentProcessing && (
-              <div className="p-12 flex flex-col items-center justify-center space-y-4">
-                <RefreshCw className="h-12 w-12 animate-spin text-rose-600" />
-                <h4 className="font-bold text-gray-800">Processing Payment...</h4>
-                <p className="text-sm text-gray-500 text-center">{processingStep}</p>
+              <div className="space-y-4 py-6">
+                <RefreshCw className="h-12 w-12 animate-spin text-rose-600 mx-auto" />
+                <h4 className="font-extrabold text-gray-800 text-lg">Transaction Processing</h4>
+                <p className="text-sm text-gray-500">{processingStep}</p>
               </div>
             )}
-
-            {/* Simulated MOMO Pin Dialer screen */}
-            {momoUssdPrompt && (
-              <div className="p-8 space-y-6 text-center">
-                <div className="mx-auto w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center border border-amber-200">
-                  <span className="text-2xl text-amber-500">📱</span>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-extrabold text-gray-800 text-lg">USSD Mobile Authorization</h4>
-                  <p className="text-sm text-gray-500">
-                    A simulated USSD push message was sent to <strong>{phoneNum}</strong>. Please enter your Mobile Money PIN code below to confirm this transaction.
-                  </p>
-                </div>
-                <div className="max-w-[200px] mx-auto">
-                  <input
-                    type="password"
-                    maxLength={5}
-                    value={momoPin}
-                    onChange={(e) => setMomoPin(e.target.value)}
-                    className="block w-full text-center text-2xl tracking-widest rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:border-rose-500 focus:outline-none"
-                    placeholder="•••••"
-                  />
-                </div>
-                <button
-                  onClick={handleMomoPinSubmit}
-                  disabled={momoPin.length < 4}
-                  className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition disabled:opacity-55"
-                >
-                  Authorize Amount ({payBooking.budget.toLocaleString()} RWF)
-                </button>
-              </div>
-            )}
-
-            {/* Simulated Card OTP Validation */}
-            {otpSent && (
-              <div className="p-8 space-y-6 text-center">
-                <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-200">
-                  <span className="text-2xl text-emerald-500">🔐</span>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-extrabold text-gray-800 text-lg">3D Secure Card Verification</h4>
-                  <p className="text-sm text-gray-500">
-                    Please enter the 6-digit verification passcode sent via SMS to verify ownership of this card.
-                  </p>
-                </div>
-                <div className="max-w-[200px] mx-auto">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    className="block w-full text-center text-xl font-bold tracking-widest rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:border-rose-500 focus:outline-none"
-                    placeholder="000000"
-                  />
-                </div>
-                <button
-                  onClick={handleOtpSubmit}
-                  disabled={otpCode.length < 6}
-                  className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition disabled:opacity-55"
-                >
-                  Verify and Pay
-                </button>
-              </div>
-            )}
-
-            {/* Success Screen */}
+            
             {paymentSuccess && (
-              <div className="p-8 text-center space-y-6">
+              <div className="space-y-6 py-4">
                 <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
                   <CheckCircle className="h-12 w-12 text-emerald-600" />
                 </div>
                 <div className="space-y-2">
-                  <h4 className="text-2xl font-bold text-gray-900">Payment Approved!</h4>
+                  <h4 className="text-2xl font-bold text-gray-900">Payment Processed!</h4>
                   <p className="text-sm text-gray-500">
-                    {paymentMethod === 'BANK'
-                      ? 'Your bank slip has been uploaded successfully. Planners will verify the transaction balance shortly.'
-                      : 'Congratulations! Your transaction was approved and your booking status is now confirmed.'}
+                    {newlyCreatedPayment?.status === 'PAID' 
+                      ? 'Congratulations! Your online payment has been verified successfully. Your booking is now confirmed.' 
+                      : 'Your bank slip has been uploaded successfully. The planners will verify it against their accounts shortly.'}
                   </p>
                 </div>
-
                 {newlyCreatedPayment && newlyCreatedPayment.status === 'PAID' && (
                   <button
                     onClick={() => downloadReceipt(newlyCreatedPayment)}
@@ -536,106 +510,81 @@ const ClientDashboard = () => {
                     Print / Download Receipt
                   </button>
                 )}
-
                 <button
-                  onClick={() => setShowPayModal(false)}
+                  onClick={() => {
+                    setPaymentSuccess(false);
+                    setPaymentProcessing(false);
+                  }}
                   className="w-full rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 px-4 text-sm transition"
                 >
-                  Close Receipt Screen
+                  Close Confirmation
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
 
-            {/* General form */}
-            {!paymentProcessing && !momoUssdPrompt && !otpSent && !paymentSuccess && (
-              <form onSubmit={handlePaymentSubmit} className="p-6 space-y-6">
-                {/* Method selector tabs */}
-                <div className="grid grid-cols-4 gap-2 border-b pb-4">
-                  {[
-                    { id: 'MOMO', name: 'MTN MoMo', icon: '📞' },
-                    { id: 'AIRTEL', name: 'Airtel Money', icon: '📱' },
-                    { id: 'CARD', name: 'Card', icon: '💳' },
-                    { id: 'BANK', name: 'Bank BK', icon: '🏛️' },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(tab.id)}
-                      className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-bold transition ${
-                        paymentMethod === tab.id 
-                          ? 'border-rose-500 bg-rose-50/50 text-rose-600' 
-                          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-lg mb-1">{tab.icon}</span>
-                      <span>{tab.name}</span>
-                    </button>
-                  ))}
+      {/* Manual BK Slip Deposit Modal Fallback */}
+      {showManualPayModal && payBooking && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-6 text-white relative">
+              <h3 className="text-xl font-bold">Bank Slip Verification</h3>
+              <p className="text-rose-100 text-xs mt-1">Upload your direct deposit BK slip</p>
+              <button 
+                onClick={() => setShowManualPayModal(false)}
+                className="absolute top-6 right-6 text-white/80 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleManualPaymentSubmit} className="p-6 space-y-6">
+              <div className="bg-rose-50/40 border border-rose-100/50 p-4 rounded-2xl space-y-2 text-xs text-gray-700">
+                <p className="font-bold text-rose-700 uppercase tracking-wide">Bank details for manual deposit:</p>
+                <p><strong>Bank:</strong> Bank of Kigali (BK)</p>
+                <p><strong>Account Name:</strong> Wedding Planner Platform Ltd</p>
+                <p><strong>Account Number:</strong> 00095-07712345-88</p>
+                <p className="font-bold text-gray-900 mt-2">Deposit Amount: {payBooking.budget.toLocaleString()} RWF</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                    Deposit Transaction ID / Reference
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bankReference}
+                    onChange={(e) => setBankReference(e.target.value)}
+                    placeholder="e.g. BK-TX-xxxx"
+                    className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                  />
                 </div>
-
-                {/* Amount detail */}
-                <div className="bg-gray-50 p-4 rounded-2xl flex justify-between items-center text-sm font-semibold">
-                  <span className="text-gray-500">Checkout Amount:</span>
-                  <span className="text-gray-900 font-extrabold text-lg">{payBooking.budget.toLocaleString()} RWF</span>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                    Upload Bank Deposit Slip Receipt Photo
+                  </label>
+                  <input
+                    type="file"
+                    required
+                    accept="image/*"
+                    onChange={handleProofSlipUpload}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100"
+                  />
                 </div>
+              </div>
 
-                {/* Manual verification instruction depending on selection */}
-                <div className="bg-rose-50/40 border border-rose-100/50 p-5 rounded-2xl space-y-2 text-xs text-gray-700 leading-relaxed">
-                  <p className="font-bold text-rose-700 uppercase tracking-wide">Manual Payment Instructions:</p>
-                  {paymentMethod === 'MOMO' && (
-                    <p>Please send the wedding booking fee of <strong>{payBooking.budget.toLocaleString()} RWF</strong> manually to our MTN Mobile Money number: <br /><strong className="text-gray-900 text-sm">0788 123 456</strong> (Registered Name: <strong>Rukundo Elie</strong>).</p>
-                  )}
-                  {paymentMethod === 'AIRTEL' && (
-                    <p>Please send the wedding booking fee of <strong>{payBooking.budget.toLocaleString()} RWF</strong> manually to our Airtel Money number: <br /><strong className="text-gray-900 text-sm">0733 987 654</strong> (Registered Name: <strong>Rukundo Elie</strong>).</p>
-                  )}
-                  {paymentMethod === 'CARD' && (
-                    <p>Please transfer the booking fee of <strong>{payBooking.budget.toLocaleString()} RWF</strong> using your Bank or Card portal directly to our Bank of Kigali (BK) Account: <br /><strong className="text-gray-900 text-sm">00095-07712345-88</strong> (Registered Name: <strong>Wedding Planner Platform Ltd</strong>).</p>
-                  )}
-                  {paymentMethod === 'BANK' && (
-                    <p>Please deposit or transfer the booking fee of <strong>{payBooking.budget.toLocaleString()} RWF</strong> directly to our Bank of Kigali (BK) Account: <br /><strong className="text-gray-900 text-sm">00095-07712345-88</strong> (Account Name: <strong>Wedding Planner Platform Ltd</strong>).</p>
-                  )}
-                  <p className="text-[10px] text-gray-400 font-semibold mt-2">After transferring the amount manually, please paste your Transaction ID and upload the slip/SMS screenshot below to notify the administrators.</p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                      Transaction Reference ID / Code
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={bankReference}
-                      onChange={(e) => setBankReference(e.target.value)}
-                      placeholder="e.g. Txn-xxxx or BK-REF-xxxx"
-                      className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                      Upload Proof of Payment Slip or SMS Screenshot
-                    </label>
-                    <input
-                      type="file"
-                      required
-                      accept="image/*"
-                      onChange={handleProofSlipUpload}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100"
-                    />
-                  </div>
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={!bankReference || !bankSlipBase64}
-                  className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold py-4 px-4 text-sm shadow-lg shadow-rose-200 transition"
-                >
-                  Submit Payment Proof for Verification
-                </button>
-              </form>
-            )}
+              <button
+                type="submit"
+                disabled={!bankReference || !bankSlipBase64}
+                className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold py-4 px-4 text-sm shadow-lg shadow-rose-200 transition"
+              >
+                Submit Bank Slip
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -780,7 +729,7 @@ const ClientDashboard = () => {
                       <div className="flex gap-2 items-center mt-2">
                         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment:</span>
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          activeBooking.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                          activeBooking.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 font-bold'
                         }`}>
                           {activeBooking.paymentStatus}
                         </span>
@@ -788,12 +737,20 @@ const ClientDashboard = () => {
                     </div>
 
                     {activeBooking.paymentStatus !== 'PAID' && (
-                      <button
-                        onClick={() => startCheckout(activeBooking)}
-                        className="rounded-2xl bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 text-sm font-bold shadow-md shadow-rose-200 transition hover:scale-[1.01]"
-                      >
-                        Pay Online Now
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={() => handleOnlinePaymentCheckout(activeBooking)}
+                          className="rounded-2xl bg-rose-600 hover:bg-rose-500 text-white px-6 py-3.5 text-sm font-bold shadow-md shadow-rose-200 transition hover:scale-[1.01]"
+                        >
+                          💳 Pay Online Now (MoMo/Card)
+                        </button>
+                        <button
+                          onClick={() => startManualCheckout(activeBooking)}
+                          className="rounded-2xl border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 px-6 py-3.5 text-sm font-bold transition hover:scale-[1.01]"
+                        >
+                          🏛️ Upload BK Deposit Slip
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -917,12 +874,20 @@ const ClientDashboard = () => {
                 <div className="text-center py-12 space-y-4">
                   <p className="text-gray-500 text-sm">No payment records found.</p>
                   {activeBooking && activeBooking.paymentStatus !== 'PAID' && (
-                    <button
-                      onClick={() => startCheckout(activeBooking)}
-                      className="rounded-full bg-rose-600 text-white px-6 py-2.5 text-sm font-bold hover:bg-rose-500 transition"
-                    >
-                      Process Pending Invoice Now
-                    </button>
+                    <div className="flex gap-3 justify-center">
+                      <button
+                        onClick={() => handleOnlinePaymentCheckout(activeBooking)}
+                        className="rounded-full bg-rose-600 text-white px-6 py-2.5 text-sm font-bold hover:bg-rose-500 transition"
+                      >
+                        Pay Online Now (MoMo/Card)
+                      </button>
+                      <button
+                        onClick={() => startManualCheckout(activeBooking)}
+                        className="rounded-full border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 px-6 py-2.5 text-sm font-bold transition"
+                      >
+                        Submit Bank Slip
+                      </button>
+                    </div>
                   )}
                 </div>
               ) : (
