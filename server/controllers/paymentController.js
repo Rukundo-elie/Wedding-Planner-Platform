@@ -37,8 +37,8 @@ const processPayment = async (req, res) => {
     // Determine payment status based on method
     // Online instant payments are marked as PAID immediately.
     // Manual methods (Bank Transfer, Cash) require Admin verification and start as PENDING.
-    const isInstant = ['CARD', 'MOMO', 'AIRTEL'].includes(method.toUpperCase());
-    const paymentStatus = isInstant ? 'PAID' : 'PENDING';
+    // All payments are submitted as PENDING, awaiting admin verification
+    const paymentStatus = 'PENDING';
 
     // Create payment record
     const payment = await prisma.payment.create({
@@ -52,29 +52,16 @@ const processPayment = async (req, res) => {
       },
     });
 
-    // Update booking payment and overall status if instant
-    if (isInstant) {
-      await prisma.booking.update({
-        where: { id: parseInt(bookingId) },
-        data: {
-          paymentStatus: 'PAID',
-          status: 'CONFIRMED',
-        },
-      });
-    } else {
-      // If manual transfer, set booking payment status to pending approval
-      await prisma.booking.update({
-        where: { id: parseInt(bookingId) },
-        data: {
-          paymentStatus: 'PENDING',
-        },
-      });
-    }
+    // Set booking payment status to PENDING (awaiting admin confirmation)
+    await prisma.booking.update({
+      where: { id: parseInt(bookingId) },
+      data: {
+        paymentStatus: 'PENDING',
+      },
+    });
 
     res.status(201).json({
-      message: isInstant 
-        ? 'Payment completed successfully!' 
-        : 'Payment submitted successfully. Awaiting administrator verification.',
+      message: 'Payment details submitted successfully! Awaiting administrator verification.',
       payment,
     });
   } catch (error) {
