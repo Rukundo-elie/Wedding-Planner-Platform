@@ -248,11 +248,11 @@ const AdminDashboard = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-emerald-50/20 border border-emerald-100 p-6 rounded-2xl">
                   <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Total Revenue</div>
-                  <div className="text-3xl font-extrabold text-gray-900">{reports.revenue.toLocaleString()} RWF</div>
+                  <div className="text-3xl font-extrabold text-gray-900">{(reports.totalRevenue || 0).toLocaleString()} RWF</div>
                 </div>
                 <div className="bg-rose-50/20 border border-rose-100 p-6 rounded-2xl">
                   <div className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Total Bookings</div>
-                  <div className="text-3xl font-extrabold text-gray-900">{reports.bookingsCount} Weddings</div>
+                  <div className="text-3xl font-extrabold text-gray-900">{reports.totalBookings || 0} Weddings</div>
                 </div>
               </div>
             </div>
