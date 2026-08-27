@@ -41,7 +41,70 @@ app.get('/', (req, res) => {
   res.send('Wedding Planner & Budget Management API is running...');
 });
 
-// Error handling middleware
+// Webhook endpoint to receive payment notifications from Flutterwave
+app.post('/api/webhook/flutterwave', async (req, res) => {
+  const signature = req.headers['verif-hash'];
+  const secretHash = process.env.FLUTTERWAVE_WEBHOOK_SECRET;
+
+  // Verify the webhook signature if configured
+  if (secretHash && signature !== secretHash) {
+    return res.status(401).send('Unauthorized: Invalid verification hash');
+  }
+
+  const event = req.body;
+
+  if (event && event.event === 'charge.completed' && event.data && event.data.status === 'successful') {
+    console.log('✅ Payment successful via webhook:', event.data);
+    const txRef = event.data.tx_ref;
+    
+    if (txRef && txRef.startsWith('BOOK-')) {
+      const parts = txRef.split('-');
+      const bookingId = parseInt(parts[1]);
+
+      try {
+        const transactionId = String(event.data.id);
+        const prisma = require('./config/db');
+
+        // Check if payment already exists to prevent duplicate records
+        const existingPayment = await prisma.payment.findUnique({
+          where: { transactionId }
+        });
+
+        if (!existingPayment) {
+          // Create payment record
+          await prisma.payment.create({
+            data: {
+              bookingId,
+              amount: parseFloat(event.data.amount),
+              method: event.data.payment_type ? event.data.payment_type.toUpperCase() : 'FLUTTERWAVE_WEBHOOK',
+              transactionId,
+              status: 'PAID',
+            },
+          });
+
+          // Confirm the associated booking
+          await prisma.booking.update({
+            where: { id: bookingId },
+            data: {
+              paymentStatus: 'PAID',
+              status: 'CONFIRMED',
+            },
+          });
+
+          console.log(`[Webhook success]: Booking #${bookingId} payment verified & confirmed.`);
+        }
+      } catch (dbErr) {
+        console.error('Error handling webhook database update:', dbErr);
+      }
+    }
+  } else {
+    console.log(`Unhandled webhook event:`, event?.event || 'No event info');
+  }
+
+  res.status(200).send('Webhook received');
+});
+
+// Error handling middleware (Must be declared last)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong on the server!' });

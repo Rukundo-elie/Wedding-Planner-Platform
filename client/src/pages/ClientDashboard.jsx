@@ -176,7 +176,7 @@ const ClientDashboard = () => {
 
     window.FlutterwaveCheckout({
       public_key: publicKey,
-      tx_ref: `TXN-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      tx_ref: `BOOK-${booking.id}-TXN-${Date.now()}`,
       amount: booking.budget,
       currency: 'RWF',
       payment_options: 'card,mobilemoneyrwanda',
