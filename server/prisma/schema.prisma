@@ -49,6 +49,7 @@ model User {
   plannerTasks     Task[]    @relation("PlannerTasks")
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
+  vendor           Vendor?
 }
 
 model PasswordResetToken {
@@ -74,14 +75,20 @@ model Package {
 }
 
 model Vendor {
-  id        Int      @id @default(autoincrement())
-  name      String
-  service   String   // Photographer, Decorator, Caterer, DJ, Transport, Makeup Artist, Venue
-  phone     String?
-  email     String?
-  price     Float
-  location  String?
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @unique
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  service     String   // Venue, Decorator, Caterer, DJ, Transport, Photographer, Makeup Artist, Cake
+  phone       String?
+  email       String?
+  price       Float
+  location    String?
+  description String?  @db.Text
+  image       String?  @db.LongText
+  isApproved  Boolean  @default(false)
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
 }
 
 model Booking {

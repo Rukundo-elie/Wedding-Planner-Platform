@@ -132,6 +132,8 @@ const Home = () => {
     }
   };
 
+  const [activeVendorCategory, setActiveVendorCategory] = useState('All');
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -140,7 +142,7 @@ const Home = () => {
           axios.get('/vendors'),
         ]);
         setPackages(pkgRes.data);
-        setVendors(vendorRes.data.slice(0, 4)); // Show first 4
+        setVendors(vendorRes.data);
       } catch (err) {
         console.error('Error fetching landing page data:', err);
       } finally {
@@ -162,6 +164,10 @@ const Home = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return undefined;
   }, [location.pathname, location.hash, loading]);
+
+  const displayedVendors = vendors
+    .filter(v => activeVendorCategory === 'All' || v.service === activeVendorCategory)
+    .slice(0, 8);
 
   return (
     <div className="bg-rose-50/20 min-h-screen">
@@ -353,32 +359,85 @@ const Home = () => {
       {/* Vendor marketplace preview */}
       <section id="marketplace" className="py-20 bg-rose-50/40 border-t border-rose-100 scroll-mt-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center space-y-4 mb-16">
-            <h2 className="text-3xl font-extrabold tracking-tight text-gray-900">Featured Vendors</h2>
-            <p className="text-gray-600 text-sm">We partner only with the most trusted venues, decorators, and caterers in Rwanda.</p>
+          <div className="mx-auto max-w-2xl text-center space-y-3 mb-10">
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-600 bg-rose-100/60 px-3.5 py-1 rounded-full">
+              Category Marketplace
+            </span>
+            <h2 className="text-3xl font-extrabold tracking-tight text-gray-900">Explore Wedding Vendors</h2>
+            <p className="text-gray-600 text-sm">Find and compare venues, decorators, caterers, transport, and photographers across Rwanda.</p>
+          </div>
+
+          {/* Quick Category Buttons */}
+          <div className="flex items-center justify-center gap-2 overflow-x-auto pb-4 mb-8 scrollbar-none">
+            {['All', 'Venue', 'Caterer', 'Decorator', 'Photographer', 'DJ', 'Transport', 'Makeup Artist'].map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveVendorCategory(cat)}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                  activeVendorCategory === cat
+                    ? 'bg-rose-600 text-white shadow-sm scale-105'
+                    : 'bg-white text-gray-600 hover:bg-rose-50 hover:text-rose-600 border border-gray-200'
+                }`}
+              >
+                {cat === 'All' ? 'All Vendors' : cat}
+              </button>
+            ))}
           </div>
 
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-rose-500 border-t-transparent"></div>
             </div>
+          ) : displayedVendors.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-3xl border border-gray-100 p-8 max-w-md mx-auto">
+              <p className="text-sm text-gray-500">No approved vendors listed in this category yet.</p>
+              <Link to="/vendors" className="text-xs font-bold text-rose-600 hover:underline mt-2 inline-block">
+                View all platform categories →
+              </Link>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {vendors.map((vendor) => (
-                <div key={vendor.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
-                  <div className="inline-flex rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-600 mb-3">
-                    {vendor.service}
+              {displayedVendors.map((vendor) => (
+                <div key={vendor.id} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">
+                        {vendor.service}
+                      </span>
+                      <span className="text-[11px] text-gray-400 font-medium">{vendor.location || 'Rwanda'}</span>
+                    </div>
+                    <h4 className="font-bold text-gray-900 text-base mb-1 line-clamp-1">{vendor.name}</h4>
+                    <p className="text-xs text-gray-500 mb-4 line-clamp-2 leading-relaxed">
+                      {vendor.description || `Professional ${vendor.service.toLowerCase()} service for weddings in Rwanda.`}
+                    </p>
                   </div>
-                  <h4 className="font-bold text-gray-900 text-base mb-1">{vendor.name}</h4>
-                  <p className="text-xs text-gray-500 mb-3">{vendor.location || 'Kigali, Rwanda'}</p>
-                  <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-gray-50">
-                    <span className="text-gray-500 text-xs font-normal">Pricing starts at</span>
-                    <span className="text-gray-950">{vendor.price.toLocaleString()} RWF</span>
+                  <div className="flex justify-between items-center text-sm font-bold pt-3 border-t border-gray-50">
+                    <div>
+                      <span className="block text-[10px] text-gray-400 font-normal">Starts at</span>
+                      <span className="text-gray-950 font-extrabold text-xs">{vendor.price ? `${vendor.price.toLocaleString()} RWF` : 'Custom'}</span>
+                    </div>
+                    <Link
+                      to={`/vendors?category=${encodeURIComponent(vendor.service)}`}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-3 py-1.5 rounded-full hover:bg-rose-100 transition"
+                    >
+                      View Category
+                    </Link>
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          <div className="text-center mt-12">
+            <Link
+              to="/vendors"
+              className="inline-flex items-center gap-2 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold px-8 py-3.5 text-sm shadow-md shadow-rose-200 transition hover:scale-105"
+            >
+              <span>Explore All Wedding Vendors & Categories</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
 

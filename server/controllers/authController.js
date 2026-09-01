@@ -51,10 +51,31 @@ const register = async (req, res) => {
         role: userRole,
       },
     });
+
+    // If registering as a VENDOR, automatically create their initial Vendor profile record in PENDING state
+    if (userRole === 'VENDOR') {
+      const { service, price, location, businessName, description } = req.body;
+      await prisma.vendor.create({
+        data: {
+          userId: user.id,
+          name: businessName || name,
+          service: service || 'Venue',
+          phone: phone || null,
+          email: normalizedEmail,
+          price: price !== undefined && price !== '' ? parseFloat(price) : 0,
+          location: location || '',
+          description: description || '',
+          isApproved: false,
+          status: 'PENDING',
+        },
+      });
+    }
     
     const session = createSession(user);
     res.status(201).json({
-      message: 'User registered successfully',
+      message: userRole === 'VENDOR' 
+        ? 'Vendor account registered successfully! Awaiting administrator approval before being listed.' 
+        : 'User registered successfully',
       ...session,
     });
   } catch (error) {

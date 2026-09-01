@@ -30,6 +30,8 @@ const Navbar = () => {
         return '/admin';
       case 'PLANNER':
         return '/planner';
+      case 'VENDOR':
+        return '/vendor';
       default:
         return '/client';
     }
@@ -60,6 +62,7 @@ const Navbar = () => {
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
             <button type="button" onClick={handleGoHome} className={navLinkClass}>Home</button>
+            <Link to="/vendors" className={navLinkClass}>Vendors</Link>
             {sectionLinks.map((link) => (
               <button
                 key={link.id}
@@ -131,6 +134,13 @@ const Navbar = () => {
             >
               Home
             </button>
+            <Link
+              to="/vendors"
+              onClick={() => setMobileOpen(false)}
+              className="block w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-600"
+            >
+              Vendors
+            </Link>
             {sectionLinks.map((link) => (
               <button
                 key={link.id}

@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
+import Vendors from './pages/Vendors';
 import ContactSuccess from './pages/ContactSuccess';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -13,6 +14,7 @@ import ResetPassword from './pages/ResetPassword';
 import ClientDashboard from './pages/ClientDashboard';
 import PlannerDashboard from './pages/PlannerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import VendorDashboard from './pages/VendorDashboard';
 
 function App() {
   return (
@@ -24,6 +26,7 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
+              <Route path="/vendors" element={<Vendors />} />
               <Route path="/contact-success" element={<ContactSuccess />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -33,6 +36,11 @@ function App() {
               {/* Client Protected Dashboard */}
               <Route element={<ProtectedRoute allowedRoles={['CLIENT']} />}>
                 <Route path="/client" element={<ClientDashboard />} />
+              </Route>
+
+              {/* Vendor Protected Dashboard */}
+              <Route element={<ProtectedRoute allowedRoles={['VENDOR', 'ADMIN']} />}>
+                <Route path="/vendor" element={<VendorDashboard />} />
               </Route>
 
               {/* Planner Protected Dashboard */}

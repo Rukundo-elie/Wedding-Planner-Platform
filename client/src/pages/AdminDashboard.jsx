@@ -44,7 +44,7 @@ const AdminDashboard = () => {
       const [reportsData, pkgsData, vendorsData, contactData, paymentsData] = await Promise.all([
         fetchResource('/reports'),
         fetchResource('/packages'),
-        fetchResource('/vendors'),
+        fetchResource('/vendors?all=true'),
         fetchResource('/contact'),
         fetchResource('/payments')
       ]);
@@ -101,17 +101,17 @@ const AdminDashboard = () => {
     }
   };
 
-  // Manage Vendors CRUD
+  // Manage Vendors CRUD & Approvals
   const handleVendorSubmit = async (e) => {
     e.preventDefault();
-    if (!vendorForm.name || !vendorForm.price) return;
+    if (!vendorForm.name || !vendorForm.service || !vendorForm.price) return;
 
     try {
       if (vendorForm.id) {
         // Update
         const res = await axios.put(`/vendors/${vendorForm.id}`, vendorForm);
         setVendors(vendors.map(v => v.id === vendorForm.id ? res.data.vendor : v));
-        showNotification('success', 'Vendor information updated.');
+        showNotification('success', 'Vendor updated successfully.');
       } else {
         // Create
         const res = await axios.post('/vendors', vendorForm);
@@ -121,6 +121,27 @@ const AdminDashboard = () => {
       setVendorForm({ id: null, name: '', service: 'Venue', price: '', location: '', phone: '', email: '' });
     } catch (err) {
       showNotification('error', 'Failed to save vendor.');
+    }
+  };
+
+  const handleApproveVendor = async (vendorId) => {
+    try {
+      const res = await axios.patch(`/vendors/${vendorId}/approve`);
+      showNotification('success', res.data.message || 'Vendor approved and published.');
+      fetchAdminData();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Approval failed.');
+    }
+  };
+
+  const handleRejectVendor = async (vendorId) => {
+    if (!window.confirm('Are you sure you want to reject this vendor?')) return;
+    try {
+      const res = await axios.patch(`/vendors/${vendorId}/reject`);
+      showNotification('success', res.data.message || 'Vendor rejected.');
+      fetchAdminData();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Rejection failed.');
     }
   };
 
@@ -353,154 +374,240 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* TAB 3: MANAGE VENDORS */}
-          {activeTab === 'vendors' && (
-            <div className="space-y-8">
-              <div className="flex justify-between items-center border-b pb-4">
-                <h2 className="text-xl font-bold text-gray-900">Platform Vendors</h2>
-                <span className="bg-rose-50 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-2xl border border-rose-100/50">
-                  {vendors.length} Registered Listings
-                </span>
-              </div>
+          {/* TAB 3: MANAGE VENDORS & APPROVALS */}
+          {activeTab === 'vendors' && (() => {
+            const pendingVendors = vendors.filter((v) => !v.isApproved || v.status === 'PENDING');
+            const approvedVendors = vendors.filter((v) => v.isApproved && v.status !== 'PENDING');
 
-              {/* Vendor table */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-100 text-sm">
-                  <thead>
-                    <tr className="text-left font-semibold text-gray-400">
-                      <th className="py-3 px-4">Vendor Details</th>
-                      <th className="py-3 px-4">Service</th>
-                      <th className="py-3 px-4">Starting Price</th>
-                      <th className="py-3 px-4">Location</th>
-                      <th className="py-3 px-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {vendors.map((v) => (
-                      <tr key={v.id} className="hover:bg-gray-50/30 transition text-gray-700">
-                        <td className="py-4 px-4 font-bold text-gray-900">
-                          <div>{v.name}</div>
-                          <div className="text-xs text-gray-400 font-normal">{v.email || 'No email'} | {v.phone || 'No phone'}</div>
-                        </td>
-                        <td className="py-4 px-4"><span className="text-xs font-bold bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full">{v.service}</span></td>
-                        <td className="py-4 px-4 font-bold text-gray-900">{v.price.toLocaleString()} RWF</td>
-                        <td className="py-4 px-4 text-gray-500">{v.location || 'N/A'}</td>
-                        <td className="py-4 px-4 text-center space-x-2">
-                          <button
-                            onClick={() => setVendorForm(v)}
-                            className="text-xs text-rose-600 font-bold hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleVendorDelete(v.id)}
-                            className="text-xs text-red-500 font-bold hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            return (
+              <div className="space-y-10">
+                {/* 1. Pending Approvals Queue */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Pending Vendor Registrations</h2>
+                      <p className="text-xs text-gray-500">Review and approve new vendor business applications before publishing.</p>
+                    </div>
+                    <span className="bg-amber-50 text-amber-700 font-extrabold text-xs px-3 py-1.5 rounded-full border border-amber-200">
+                      {pendingVendors.length} Awaiting Approval
+                    </span>
+                  </div>
 
-              {/* Vendor form */}
-              <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-6">
-                <h3 className="font-bold text-gray-900 mb-4">{vendorForm.id ? 'Edit Vendor Info' : 'Register New Vendor Account'}</h3>
-                <form onSubmit={handleVendorSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Vendor/Business Name</label>
-                      <input
-                        type="text"
-                        value={vendorForm.name}
-                        onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
-                        placeholder="e.g. Kigali Convention Center"
-                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none animate-none"
-                      />
+                  {pendingVendors.length === 0 ? (
+                    <div className="bg-gray-50/50 rounded-2xl p-6 text-center text-xs text-gray-500 border border-dashed border-gray-200">
+                      ✅ All vendor applications have been reviewed. No pending registrations.
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Service Type Category</label>
-                      <select
-                        value={vendorForm.service}
-                        onChange={(e) => setVendorForm({ ...vendorForm, service: e.target.value })}
-                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
-                      >
-                        <option value="Venue">Venue / Halls</option>
-                        <option value="Catering">Catering & Cakes</option>
-                        <option value="Decoration">Florist & Decors</option>
-                        <option value="Photography">Photography & Videography</option>
-                        <option value="Transport">Luxury Car Rental</option>
-                        <option value="Entertainment">DJ & Sound Systems</option>
-                      </select>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-100 text-sm">
+                        <thead>
+                          <tr className="text-left font-semibold text-gray-400 bg-amber-50/30">
+                            <th className="py-3 px-4">Business Details</th>
+                            <th className="py-3 px-4">Category</th>
+                            <th className="py-3 px-4">Starting Price</th>
+                            <th className="py-3 px-4">Location</th>
+                            <th className="py-3 px-4 text-center">Approval Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 font-medium">
+                          {pendingVendors.map((v) => (
+                            <tr key={v.id} className="hover:bg-amber-50/20 transition text-gray-700">
+                              <td className="py-4 px-4 font-bold text-gray-900">
+                                <div>{v.name}</div>
+                                <div className="text-xs text-gray-400 font-normal">{v.email || 'No email'} | {v.phone || 'No phone'}</div>
+                                {v.description && <div className="text-[11px] text-gray-500 italic mt-0.5 max-w-xs truncate">{v.description}</div>}
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className="text-xs font-bold bg-rose-50 text-rose-600 px-2.5 py-0.5 rounded-full">
+                                  {v.service}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4 font-bold text-gray-900">{v.price.toLocaleString()} RWF</td>
+                              <td className="py-4 px-4 text-gray-500 text-xs">{v.location || 'Rwanda'}</td>
+                              <td className="py-4 px-4 text-center space-x-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveVendor(v.id)}
+                                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 rounded-full transition shadow-sm"
+                                >
+                                  Approve & List
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectVendor(v.id)}
+                                  className="text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 py-1.5 rounded-full transition"
+                                >
+                                  Reject
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
+                  )}
+                </div>
+
+                {/* 2. Active Approved Listings */}
+                <div className="space-y-4 pt-6 border-t">
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Active Directory Listings</h2>
+                      <p className="text-xs text-gray-500">Live vendors currently visible to wedding clients in public categories.</p>
+                    </div>
+                    <span className="bg-emerald-50 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-2xl border border-emerald-100/50">
+                      {approvedVendors.length} Live on Platform
+                    </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Starting Quote (RWF)</label>
-                      <input
-                        type="number"
-                        value={vendorForm.price}
-                        onChange={(e) => setVendorForm({ ...vendorForm, price: e.target.value })}
-                        placeholder="1,500,000"
-                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Physical Location</label>
-                      <input
-                        type="text"
-                        value={vendorForm.location}
-                        onChange={(e) => setVendorForm({ ...vendorForm, location: e.target.value })}
-                        placeholder="e.g. Gasabo, Kigali"
-                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
-                      />
-                    </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-100 text-sm">
+                      <thead>
+                        <tr className="text-left font-semibold text-gray-400 bg-gray-50/50">
+                          <th className="py-3 px-4">Vendor Details</th>
+                          <th className="py-3 px-4">Service Category</th>
+                          <th className="py-3 px-4">Starting Price</th>
+                          <th className="py-3 px-4">Location</th>
+                          <th className="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {approvedVendors.map((v) => (
+                          <tr key={v.id} className="hover:bg-gray-50/30 transition text-gray-700">
+                            <td className="py-4 px-4 font-bold text-gray-900">
+                              <div>{v.name}</div>
+                              <div className="text-xs text-gray-400 font-normal">{v.email || 'No email'} | {v.phone || 'No phone'}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="text-xs font-bold bg-rose-50 text-rose-600 px-2.5 py-0.5 rounded-full">
+                                {v.service}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 font-bold text-gray-900">{v.price.toLocaleString()} RWF</td>
+                            <td className="py-4 px-4 text-gray-500 text-xs">{v.location || 'N/A'}</td>
+                            <td className="py-4 px-4 text-center space-x-2">
+                              <button
+                                onClick={() => setVendorForm(v)}
+                                className="text-xs text-rose-600 font-bold hover:underline"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleVendorDelete(v.id)}
+                                className="text-xs text-red-500 font-bold hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Phone</label>
-                      <input
-                        type="text"
-                        value={vendorForm.phone}
-                        onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
-                        placeholder="+250 788..."
-                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
-                      />
+                </div>
+
+                {/* 3. Direct Add / Edit Vendor Form */}
+                <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-6 pt-4">
+                  <h3 className="font-bold text-gray-900 mb-4">{vendorForm.id ? 'Edit Vendor Info' : 'Directly Register / Add New Vendor Account'}</h3>
+                  <form onSubmit={handleVendorSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Vendor/Business Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={vendorForm.name}
+                          onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
+                          placeholder="e.g. Kigali Convention Center"
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Service Type Category</label>
+                        <select
+                          value={vendorForm.service}
+                          onChange={(e) => setVendorForm({ ...vendorForm, service: e.target.value })}
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none font-medium"
+                        >
+                          <option value="Venue">Venue / Halls</option>
+                          <option value="Caterer">Catering & Food</option>
+                          <option value="Decorator">Decor & Florals</option>
+                          <option value="Photographer">Photography & Film</option>
+                          <option value="DJ">DJ & Sound Systems</option>
+                          <option value="Transport">Transport & Luxury Cars</option>
+                          <option value="Makeup Artist">Bridal Makeup & Hair</option>
+                          <option value="Cake & Pastry">Wedding Cakes</option>
+                          <option value="Entertainment">Entertainment</option>
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Email</label>
-                      <input
-                        type="email"
-                        value={vendorForm.email}
-                        onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
-                        placeholder="info@business.com"
-                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Starting Quote (RWF)</label>
+                        <input
+                          type="number"
+                          required
+                          value={vendorForm.price}
+                          onChange={(e) => setVendorForm({ ...vendorForm, price: e.target.value })}
+                          placeholder="1,500,000"
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Physical Location</label>
+                        <input
+                          type="text"
+                          value={vendorForm.location}
+                          onChange={(e) => setVendorForm({ ...vendorForm, location: e.target.value })}
+                          placeholder="e.g. Gasabo, Kigali"
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                    {vendorForm.id && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Phone</label>
+                        <input
+                          type="text"
+                          value={vendorForm.phone}
+                          onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
+                          placeholder="+250 788..."
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Email</label>
+                        <input
+                          type="email"
+                          value={vendorForm.email}
+                          onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
+                          placeholder="info@business.com"
+                          className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-2">
+                      {vendorForm.id && (
+                        <button
+                          type="button"
+                          onClick={() => setVendorForm({ id: null, name: '', service: 'Venue', price: '', location: '', phone: '', email: '' })}
+                          className="rounded-2xl bg-gray-200 text-gray-700 py-3 px-6 text-sm font-bold transition"
+                        >
+                          Cancel
+                        </button>
+                      )}
                       <button
-                        type="button"
-                        onClick={() => setVendorForm({ id: null, name: '', service: 'Venue', price: '', location: '', phone: '', email: '' })}
-                        className="rounded-2xl bg-gray-200 text-gray-700 py-3 px-6 text-sm font-bold transition"
+                        type="submit"
+                        className="rounded-2xl bg-rose-600 text-white py-3 px-6 text-sm font-bold hover:bg-rose-500 transition shadow-md shadow-rose-100"
                       >
-                        Cancel
+                        {vendorForm.id ? 'Save Changes' : 'Publish Vendor Listing'}
                       </button>
-                    )}
-                    <button
-                      type="submit"
-                      className="rounded-2xl bg-rose-600 text-white py-3 px-6 text-sm font-bold hover:bg-rose-500 transition shadow-md shadow-rose-100"
-                    >
-                      {vendorForm.id ? 'Save Changes' : 'List Vendor Business'}
-                    </button>
-                  </div>
-                </form>
+                    </div>
+                  </form>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 4: VERIFY PAYMENTS */}
           {activeTab === 'payments' && (
