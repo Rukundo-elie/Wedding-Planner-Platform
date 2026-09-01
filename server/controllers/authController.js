@@ -230,10 +230,20 @@ const googleLogin = async (req, res) => {
   }
 };
 
+const logout = async (req, res) => {
+  try {
+    return res.status(200).json({ message: 'Logout successful' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({ message: 'Unable to log out. Please try again.' });
+  }
+};
+
 module.exports = {
   register,
   login,
   forgotPassword,
   resetPassword,
   googleLogin,
+  logout,
 };
