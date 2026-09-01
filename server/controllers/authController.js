@@ -251,85 +251,10 @@ const googleLogin = async (req, res) => {
   }
 };
 
-// Fast 1-Click Role Switcher for preview and testing
-const quickSwitchRole = async (req, res) => {
-  try {
-    const { targetRole } = req.body;
-    const normalizedRole = targetRole?.toUpperCase();
-
-    if (!['ADMIN', 'PLANNER', 'VENDOR', 'CLIENT'].includes(normalizedRole)) {
-      return res.status(400).json({ message: 'Invalid target role requested.' });
-    }
-
-    // Try to find an existing user with this role
-    let user = await prisma.user.findFirst({
-      where: { role: normalizedRole },
-      orderBy: { id: 'asc' },
-    });
-
-    if (!user) {
-      const defaultPassword = await bcrypt.hash('password123', 10);
-      let email = `demo_${normalizedRole.toLowerCase()}@wedding.com`;
-      let name = `Demo ${normalizedRole}`;
-
-      if (normalizedRole === 'ADMIN') {
-        email = 'admin@wedding.com';
-        name = 'System Admin';
-      } else if (normalizedRole === 'PLANNER') {
-        email = 'planner@wedding.com';
-        name = 'Sarah Planner';
-      } else if (normalizedRole === 'VENDOR') {
-        email = 'vendor@wedding.com';
-        name = 'Kigali Serena Venue';
-      } else {
-        email = 'client@wedding.com';
-        name = 'Aline & Eric Couple';
-      }
-
-      user = await prisma.user.create({
-        data: {
-          name,
-          email,
-          phone: '+250780000000',
-          password: defaultPassword,
-          role: normalizedRole,
-        },
-      });
-
-      if (normalizedRole === 'VENDOR') {
-        await prisma.vendor.create({
-          data: {
-            userId: user.id,
-            name: user.name,
-            service: 'Venue',
-            phone: user.phone,
-            email: user.email,
-            price: 1500000,
-            location: 'Kigali City',
-            description: 'Grand ballroom and garden space.',
-            isApproved: true,
-            status: 'APPROVED',
-          },
-        });
-      }
-    }
-
-    const session = createSession(user);
-    res.status(200).json({
-      message: `Switched active session to ${normalizedRole}`,
-      ...session,
-    });
-  } catch (error) {
-    console.error('Error switching role:', error);
-    res.status(500).json({ message: 'Error switching role' });
-  }
-};
-
 module.exports = {
   register,
   login,
   forgotPassword,
   resetPassword,
   googleLogin,
-  quickSwitchRole,
 };

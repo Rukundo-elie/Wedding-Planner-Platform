@@ -125,22 +125,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const quickSwitch = async (targetRole) => {
-    try {
-      const response = await axios.post('/auth/quick-switch', { targetRole });
-      const { token: userToken, user: userData } = response.data;
-
-      localStorage.setItem('token', userToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-
-      setToken(userToken);
-      setUser(userData);
-      return userData;
-    } catch (error) {
-      throw error.response?.data?.message || 'Failed to switch role';
-    }
-  };
-
   const value = {
     user,
     token,
@@ -148,7 +132,6 @@ export const AuthProvider = ({ children }) => {
     login,
     loginWithGoogle,
     register,
-    quickSwitch,
     requestPasswordReset,
     resetPassword,
     logout,
