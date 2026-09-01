@@ -101,8 +101,69 @@ const deletePlanner = async (req, res) => {
   }
 };
 
+// Get platform bank account settings
+const getBankSettings = async (req, res) => {
+  try {
+    let settings = await prisma.bankSetting.findFirst();
+    if (!settings) {
+      settings = await prisma.bankSetting.create({
+        data: {
+          bankName: 'Bank of Kigali (BK)',
+          accountName: 'Wedding Planner Platform Ltd',
+          accountNumber: '00095-07712345-88',
+          instructions: 'Deposit directly at any branch or via internet banking. Take a photo or screenshot of the receipt slip and upload it above.',
+        },
+      });
+    }
+    res.status(200).json(settings);
+  } catch (error) {
+    console.error('Error fetching bank settings:', error);
+    res.status(500).json({ message: 'Error retrieving bank settings' });
+  }
+};
+
+// Update platform bank account settings (Admin only)
+const updateBankSettings = async (req, res) => {
+  try {
+    const { bankName, accountName, accountNumber, instructions } = req.body;
+
+    if (!bankName || !accountName || !accountNumber) {
+      return res.status(400).json({ message: 'Bank name, account name, and account number are required.' });
+    }
+
+    let settings = await prisma.bankSetting.findFirst();
+    if (!settings) {
+      settings = await prisma.bankSetting.create({
+        data: {
+          bankName,
+          accountName,
+          accountNumber,
+          instructions: instructions || '',
+        },
+      });
+    } else {
+      settings = await prisma.bankSetting.update({
+        where: { id: settings.id },
+        data: {
+          bankName,
+          accountName,
+          accountNumber,
+          instructions: instructions !== undefined ? instructions : settings.instructions,
+        },
+      });
+    }
+
+    res.status(200).json({ message: 'Bank details updated successfully!', settings });
+  } catch (error) {
+    console.error('Error updating bank settings:', error);
+    res.status(500).json({ message: 'Error updating bank settings' });
+  }
+};
+
 module.exports = {
   getPlanners,
   createPlanner,
   deletePlanner,
+  getBankSettings,
+  updateBankSettings,
 };

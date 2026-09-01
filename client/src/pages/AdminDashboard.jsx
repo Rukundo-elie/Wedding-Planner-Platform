@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   TrendingUp, Package, Briefcase, Plus, 
-  Trash2, Award, Users, AlertCircle, Mail, CreditCard 
+  Trash2, Award, Users, AlertCircle, Mail, CreditCard, Landmark 
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -23,6 +23,15 @@ const AdminDashboard = () => {
   // Planner form state
   const [plannerForm, setPlannerForm] = useState({ name: '', email: '', phone: '', password: '' });
   const [plannerSubmitting, setPlannerSubmitting] = useState(false);
+
+  // Bank settings state
+  const [bankSettings, setBankSettings] = useState({
+    bankName: 'Bank of Kigali (BK)',
+    accountName: 'Wedding Planner Platform Ltd',
+    accountNumber: '00095-07712345-88',
+    instructions: '',
+  });
+  const [savingBank, setSavingBank] = useState(false);
 
   // Notifications / status
   const [loading, setLoading] = useState(true);
@@ -46,13 +55,14 @@ const AdminDashboard = () => {
         }
       };
 
-      const [reportsData, pkgsData, vendorsData, contactData, paymentsData, plannersData] = await Promise.all([
+      const [reportsData, pkgsData, vendorsData, contactData, paymentsData, plannersData, bankData] = await Promise.all([
         fetchResource('/reports'),
         fetchResource('/packages'),
         fetchResource('/vendors?all=true'),
         fetchResource('/contact'),
         fetchResource('/payments'),
         fetchResource('/admin/planners'),
+        fetchResource('/admin/bank-settings'),
       ]);
 
       if (reportsData) setReports(reportsData);
@@ -61,6 +71,7 @@ const AdminDashboard = () => {
       if (contactData) setContactMessages(contactData);
       if (paymentsData) setPayments(paymentsData);
       if (plannersData) setPlanners(plannersData);
+      if (bankData) setBankSettings(bankData);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to retrieve administrator data.');
@@ -213,6 +224,20 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleBankSettingsSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setSavingBank(true);
+      const res = await axios.put('/admin/bank-settings', bankSettings);
+      showNotification('success', res.data.message || 'Platform bank account updated successfully!');
+      if (res.data.settings) setBankSettings(res.data.settings);
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Failed to update bank details.');
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
   const pendingVendors = vendors.filter((v) => !v.isApproved || v.status === 'PENDING');
   const pendingPayments = payments.filter((p) => p.status === 'PENDING');
   const unreadInquiries = contactMessages.filter((m) => !m.isRead);
@@ -309,6 +334,18 @@ const AdminDashboard = () => {
                 {payments.length}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('bank')}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+              activeTab === 'bank' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Landmark className="h-5 w-5" />
+              <span>Bank Account Config</span>
+            </div>
           </button>
 
           <button
@@ -789,7 +826,109 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* TAB 5: PLANNERS & STAFF MANAGEMENT */}
+          {/* TAB 5: BANK ACCOUNT CONFIGURATION */}
+          {activeTab === 'bank' && (
+            <div className="space-y-8">
+              <div className="border-b pb-4">
+                <h2 className="text-xl font-bold text-gray-900">Platform Bank Deposit Configuration</h2>
+                <p className="text-xs text-gray-500 mt-1">Configure the official bank details shown to clients when paying via bank slip deposit.</p>
+              </div>
+
+              <div className="bg-rose-50/30 border border-rose-100/60 rounded-3xl p-6 sm:p-8">
+                <form onSubmit={handleBankSettingsSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                        Bank Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={bankSettings.bankName}
+                        onChange={(e) => setBankSettings({ ...bankSettings, bankName: e.target.value })}
+                        placeholder="e.g. Bank of Kigali (BK), Equity Bank, I&M Bank"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none sm:text-sm shadow-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                        Account Holder / Business Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={bankSettings.accountName}
+                        onChange={(e) => setBankSettings({ ...bankSettings, accountName: e.target.value })}
+                        placeholder="e.g. Wedding Planner Platform Ltd"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none sm:text-sm shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                        Bank Account Number / IBAN
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={bankSettings.accountNumber}
+                        onChange={(e) => setBankSettings({ ...bankSettings, accountNumber: e.target.value })}
+                        placeholder="e.g. 00095-07712345-88"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none sm:text-sm font-mono shadow-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                        Deposit Instructions for Clients
+                      </label>
+                      <input
+                        type="text"
+                        value={bankSettings.instructions || ''}
+                        onChange={(e) => setBankSettings({ ...bankSettings, instructions: e.target.value })}
+                        placeholder="e.g. Deposit at any branch or mobile app and upload clear receipt slip."
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none sm:text-sm shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview Card */}
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-5 space-y-2">
+                    <div className="text-[11px] font-extrabold uppercase text-gray-400">Live Client Preview</div>
+                    <div className="text-sm font-semibold text-gray-800">
+                      <strong>Bank:</strong> {bankSettings.bankName}
+                    </div>
+                    <div className="text-sm font-semibold text-gray-800">
+                      <strong>Account Name:</strong> {bankSettings.accountName}
+                    </div>
+                    <div className="text-sm font-semibold text-gray-800 font-mono">
+                      <strong>Account Number:</strong> {bankSettings.accountNumber}
+                    </div>
+                    {bankSettings.instructions && (
+                      <div className="text-xs text-gray-500 italic mt-1">
+                        Note: {bankSettings.instructions}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={savingBank}
+                      className="rounded-2xl bg-rose-600 hover:bg-rose-500 text-white py-3.5 px-8 text-sm font-bold shadow-md shadow-rose-100 transition disabled:opacity-60"
+                    >
+                      {savingBank ? 'Saving Changes...' : 'Save Bank Account Details'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: PLANNERS & STAFF MANAGEMENT */}
           {activeTab === 'planners' && (
             <div className="space-y-10">
               <div className="space-y-4">

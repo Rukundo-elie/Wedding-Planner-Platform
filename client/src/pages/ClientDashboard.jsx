@@ -43,6 +43,14 @@ const ClientDashboard = () => {
   const [chatPartnerId, setChatPartnerId] = useState(2); // Hardcoded Default Planner ID
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
+  // Dynamic Bank Settings from Admin
+  const [bankDetails, setBankDetails] = useState({
+    bankName: 'Bank of Kigali (BK)',
+    accountName: 'Wedding Planner Platform Ltd',
+    accountNumber: '00095-07712345-88',
+    instructions: '',
+  });
+
   // Loading/error
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -96,17 +104,19 @@ const ClientDashboard = () => {
         }
       };
 
-      const [bookingsData, pkgsData, paymentsData, notifData] = await Promise.all([
+      const [bookingsData, pkgsData, paymentsData, notifData, bankData] = await Promise.all([
         fetchResource('/bookings'),
         fetchResource('/packages'),
         fetchResource('/payments'),
         fetchResource('/notifications/summary'),
+        fetchResource('/admin/bank-settings'),
       ]);
 
       if (bookingsData) setBookings(bookingsData);
       if (pkgsData) setPackages(pkgsData);
       if (paymentsData) setPayments(paymentsData);
       if (notifData) setUnreadChatCount(notifData.unreadChatMessages || 0);
+      if (bankData) setBankDetails(bankData);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to load dashboard data.');
@@ -268,8 +278,6 @@ const ClientDashboard = () => {
     setProcessingStep('Saving Bank Transfer slip details...');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
       const response = await axios.post('/payments', {
         bookingId: payBooking.id,
         amount: payBooking.budget,
@@ -278,6 +286,12 @@ const ClientDashboard = () => {
         slipImage: bankSlipBase64
       });
 
+      // Immediately close the upload form modal and reset inputs
+      setShowManualPayModal(false);
+      setBankReference('');
+      setBankSlipBase64(null);
+
+      // Save created payment and show the confirmation screen directly
       setNewlyCreatedPayment(response.data.payment);
       setPaymentProcessing(false);
       setPaymentSuccess(true);
@@ -326,17 +340,14 @@ const ClientDashboard = () => {
             
             <div class="details">
               <div>
-                <strong>Billed To:</strong><br>
-                ${user.name}<br>
-                ${user.email}<br>
-                ${user.phone || ''}
+                <strong>Receipt Number:</strong> ${receiptNo}<br>
+                <strong>Date:</strong> ${formattedDate}<br>
+                <strong>Payment Method:</strong> ${payment.method}
               </div>
               <div class="right">
-                <strong>Receipt Details:</strong><br>
-                Receipt No: ${receiptNo}<br>
-                Transaction ID: ${payment.transactionId}<br>
-                Payment Date: ${formattedDate}<br>
-                Method: ${payment.method}
+                <strong>Customer:</strong> ${user?.name || 'Customer'}<br>
+                <strong>Email:</strong> ${user?.email || 'N/A'}<br>
+                <strong>Status:</strong> ${payment.status}
               </div>
             </div>
             
@@ -344,23 +355,25 @@ const ClientDashboard = () => {
               <thead>
                 <tr>
                   <th>Description</th>
-                  <th style="text-align: right;">Amount (RWF)</th>
+                  <th style="text-align: right;">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>Wedding Planning & Coordination Services Plan: <strong>${payment.booking?.package?.name || 'Custom Budget Plan'}</strong></td>
+                  <td>Wedding Planning Deposit & Booking Services</td>
                   <td style="text-align: right;">${payment.amount.toLocaleString()} RWF</td>
                 </tr>
               </tbody>
             </table>
             
             <div class="total-section">
-              <span>Total Paid: &nbsp; &nbsp; &nbsp; &nbsp; <strong>${payment.amount.toLocaleString()} RWF</strong></span>
+              <span>Total Paid: ${payment.amount.toLocaleString()} RWF</span>
             </div>
             
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-               <div class="paid-seal">PAID &amp; VERIFIED</div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px;">
+               <div>
+                  ${payment.status === 'PAID' ? '<div class="paid-seal">VERIFIED & PAID</div>' : '<div style="color: #d97706; font-weight: bold;">PENDING VERIFICATION</div>'}
+               </div>
                <div style="font-size: 11px; text-align: right; color: #6b7280;">
                  Wedding Planner Platform Ltd<br>
                  Kigali, Rwanda
@@ -422,10 +435,13 @@ const ClientDashboard = () => {
     }
 
     try {
-      const imageSrc = await readImageFile(file);
-      setCoverEditor({ bookingId, imageSrc });
-    } catch {
-      showNotification('error', 'Unable to open the selected photo.');
+      const base64 = await readFileAsDataURL(file);
+      setCoverEditor({
+        bookingId,
+        imageSrc: base64,
+      });
+    } catch (err) {
+      showNotification('error', 'Unable to read the selected image file.');
     } finally {
       e.target.value = '';
     }
@@ -459,7 +475,7 @@ const ClientDashboard = () => {
     );
   }
 
-  const activeBooking = bookings[0]; // Simple single booking flow for demo
+  const activeBooking = bookings[0] || null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -480,63 +496,86 @@ const ClientDashboard = () => {
         </div>
       )}
 
-      {/* Online Verification Status / Success Modal Overlay */}
-      {((paymentProcessing || paymentSuccess) && payBooking) && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 p-8 text-center animate-in fade-in zoom-in-95 duration-200">
+      {/* Online Verification Status / Direct Success Modal Overlay */}
+      {(paymentProcessing || paymentSuccess) && (
+        <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 min-h-screen">
+          <div className="relative w-full max-w-md my-auto bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 p-8 text-center animate-in fade-in zoom-in-95 duration-200">
             {paymentProcessing && (
               <div className="space-y-4 py-6">
                 <RefreshCw className="h-12 w-12 animate-spin text-rose-600 mx-auto" />
-                <h4 className="font-extrabold text-gray-800 text-lg">Transaction Processing</h4>
+                <h4 className="font-extrabold text-gray-800 text-lg">Submitting Bank Slip</h4>
                 <p className="text-sm text-gray-500">{processingStep}</p>
               </div>
             )}
             
             {paymentSuccess && (
-              <div className="space-y-6 py-4">
+              <div className="space-y-6 py-2">
                 <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
                   <CheckCircle className="h-12 w-12 text-emerald-600" />
                 </div>
                 <div className="space-y-2">
-                  <h4 className="text-2xl font-bold text-gray-900">Payment Processed!</h4>
-                  <p className="text-sm text-gray-500">
+                  <h4 className="text-2xl font-bold text-gray-900">
+                    {newlyCreatedPayment?.status === 'PAID' ? 'Payment Verified!' : 'Deposit Slip Received!'}
+                  </h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">
                     {newlyCreatedPayment?.status === 'PAID' 
-                      ? 'Congratulations! Your online payment has been verified successfully. Your booking is now confirmed.' 
-                      : 'Your bank slip has been uploaded successfully. The planners will verify it against their accounts shortly.'}
+                      ? 'Congratulations! Your online payment has been verified successfully. Your wedding booking is now confirmed.' 
+                      : 'Your bank deposit slip has been recorded successfully. Our platform administrators will verify the transaction and confirm your booking.'}
                   </p>
+                  {newlyCreatedPayment?.transactionId && (
+                    <div className="p-2.5 bg-gray-50 rounded-2xl border border-gray-100 text-xs font-mono text-gray-700 mt-2">
+                      Reference: <strong>{newlyCreatedPayment.transactionId}</strong>
+                    </div>
+                  )}
                 </div>
-                {newlyCreatedPayment && newlyCreatedPayment.status === 'PAID' && (
+
+                <div className="space-y-2.5 pt-2">
+                  {newlyCreatedPayment && newlyCreatedPayment.status === 'PAID' && (
+                    <button
+                      onClick={() => downloadReceipt(newlyCreatedPayment)}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition"
+                    >
+                      <Download className="h-4 w-4" />
+                      Print / Download Receipt
+                    </button>
+                  )}
+                  
                   <button
-                    onClick={() => downloadReceipt(newlyCreatedPayment)}
-                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 text-sm shadow-md transition"
+                    onClick={() => {
+                      setPaymentSuccess(false);
+                      setPaymentProcessing(false);
+                      setActiveTab('billing');
+                    }}
+                    className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 text-sm shadow-md shadow-rose-100 transition"
                   >
-                    <Download className="h-4 w-4" />
-                    Print / Download Receipt
+                    View in Billing & Receipts
                   </button>
-                )}
-                <button
-                  onClick={() => {
-                    setPaymentSuccess(false);
-                    setPaymentProcessing(false);
-                  }}
-                  className="w-full rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 px-4 text-sm transition"
-                >
-                  Close Confirmation
-                </button>
+
+                  <button
+                    onClick={() => {
+                      setPaymentSuccess(false);
+                      setPaymentProcessing(false);
+                    }}
+                    className="w-full rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-4 text-sm transition"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Manual BK Slip Deposit Modal Fallback */}
+      {/* Manual Bank Slip Deposit Modal */}
       {showManualPayModal && payBooking && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 min-h-screen overflow-y-auto">
+          <div className="relative w-full max-w-lg my-auto bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-6 text-white relative">
               <h3 className="text-xl font-bold">Bank Slip Verification</h3>
-              <p className="text-rose-100 text-xs mt-1">Upload your direct deposit BK slip</p>
+              <p className="text-rose-100 text-xs mt-1">Upload your direct deposit receipt or mobile slip</p>
               <button 
+                type="button"
                 onClick={() => setShowManualPayModal(false)}
                 className="absolute top-6 right-6 text-white/80 hover:text-white text-lg font-bold"
               >
@@ -546,11 +585,14 @@ const ClientDashboard = () => {
             
             <form onSubmit={handleManualPaymentSubmit} className="p-6 space-y-6">
               <div className="bg-rose-50/40 border border-rose-100/50 p-4 rounded-2xl space-y-2 text-xs text-gray-700">
-                <p className="font-bold text-rose-700 uppercase tracking-wide">Bank details for manual deposit:</p>
-                <p><strong>Bank:</strong> Bank of Kigali (BK)</p>
-                <p><strong>Account Name:</strong> Wedding Planner Platform Ltd</p>
-                <p><strong>Account Number:</strong> 00095-07712345-88</p>
-                <p className="font-bold text-gray-900 mt-2">Deposit Amount: {payBooking.budget.toLocaleString()} RWF</p>
+                <p className="font-bold text-rose-700 uppercase tracking-wide">Official Platform Bank Account:</p>
+                <p><strong>Bank:</strong> {bankDetails.bankName}</p>
+                <p><strong>Account Name:</strong> {bankDetails.accountName}</p>
+                <p><strong>Account Number:</strong> {bankDetails.accountNumber}</p>
+                {bankDetails.instructions && (
+                  <p className="text-gray-500 italic mt-1"><strong>Note:</strong> {bankDetails.instructions}</p>
+                )}
+                <p className="font-bold text-gray-900 mt-2">Required Deposit: {payBooking.budget.toLocaleString()} RWF</p>
               </div>
 
               <div className="space-y-4">
@@ -563,7 +605,7 @@ const ClientDashboard = () => {
                     required
                     value={bankReference}
                     onChange={(e) => setBankReference(e.target.value)}
-                    placeholder="e.g. BK-TX-xxxx"
+                    placeholder="e.g. TX-9847289 or Slip No."
                     className="block w-full rounded-2xl border border-gray-300 bg-white py-3.5 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
                   />
                 </div>
@@ -581,13 +623,22 @@ const ClientDashboard = () => {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={!bankReference || !bankSlipBase64}
-                className="w-full rounded-2xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold py-4 px-4 text-sm shadow-lg shadow-rose-200 transition"
-              >
-                Submit Bank Slip
-              </button>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualPayModal(false)}
+                  className="w-1/3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 px-4 text-sm transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!bankReference || !bankSlipBase64}
+                  className="w-2/3 rounded-2xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold py-3.5 px-4 text-sm shadow-lg shadow-rose-200 transition"
+                >
+                  Submit Bank Slip
+                </button>
+              </div>
             </form>
           </div>
         </div>
