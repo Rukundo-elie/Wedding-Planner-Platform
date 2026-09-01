@@ -41,6 +41,7 @@ const ClientDashboard = () => {
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatPartnerId, setChatPartnerId] = useState(2); // Hardcoded Default Planner ID
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   // Loading/error
   const [loading, setLoading] = useState(true);
@@ -76,6 +77,7 @@ const ClientDashboard = () => {
     if (activeTab === 'chat' && chatPartnerId) {
       fetchMessages();
       interval = setInterval(fetchMessages, 4000); // Poll chat
+      setUnreadChatCount(0);
     }
     return () => clearInterval(interval);
   }, [activeTab, chatPartnerId]);
@@ -94,15 +96,17 @@ const ClientDashboard = () => {
         }
       };
 
-      const [bookingsData, pkgsData, paymentsData] = await Promise.all([
+      const [bookingsData, pkgsData, paymentsData, notifData] = await Promise.all([
         fetchResource('/bookings'),
         fetchResource('/packages'),
-        fetchResource('/payments')
+        fetchResource('/payments'),
+        fetchResource('/notifications/summary'),
       ]);
 
       if (bookingsData) setBookings(bookingsData);
       if (pkgsData) setPackages(pkgsData);
       if (paymentsData) setPayments(paymentsData);
+      if (notifData) setUnreadChatCount(notifData.unreadChatMessages || 0);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to load dashboard data.');
@@ -646,12 +650,19 @@ const ClientDashboard = () => {
           )}
           <button
             onClick={() => setActiveTab('chat')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'chat' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <MessageSquare className="h-5 w-5" />
-            <span>Chat with Planner</span>
+            <div className="flex items-center gap-3">
+              <MessageSquare className="h-5 w-5" />
+              <span>Chat with Planner</span>
+            </div>
+            {unreadChatCount > 0 && (
+              <span className="text-[10px] bg-rose-600 text-white font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                {unreadChatCount} New
+              </span>
+            )}
           </button>
         </div>
 

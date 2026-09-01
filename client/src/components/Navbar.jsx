@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
+import { LogOut, LayoutDashboard, Menu, X, Bell } from 'lucide-react';
 import WeddingRingIcon from './WeddingRingIcon';
+import RoleSwitcher from './RoleSwitcher';
 import { navigateToSection, goHome } from '../utils/scrollToSection';
 
 const sectionLinks = [
@@ -16,6 +18,26 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifications, setNotifications] = useState(null);
+
+  useEffect(() => {
+    let timer;
+    const fetchNotifications = async () => {
+      if (!isAuthenticated) return;
+      try {
+        const res = await axios.get('/notifications/summary');
+        setNotifications(res.data);
+      } catch (e) {
+        // quiet error handling in navbar
+      }
+    };
+
+    fetchNotifications();
+    if (isAuthenticated) {
+      timer = setInterval(fetchNotifications, 10000);
+    }
+    return () => clearInterval(timer);
+  }, [isAuthenticated, location.pathname, user?.role]);
 
   const handleLogout = () => {
     setMobileOpen(false);
@@ -76,18 +98,26 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Quick 1-Click Role Switcher */}
+            <RoleSwitcher />
+
             {isAuthenticated ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <Link
                   to={getDashboardPath()}
-                  className="flex items-center gap-1.5 rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-100 transition"
+                  className="relative flex items-center gap-1.5 rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-100 transition"
                   onClick={() => setMobileOpen(false)}
                 >
                   <LayoutDashboard className="h-4 w-4" />
                   <span className="hidden sm:inline">Dashboard</span>
+                  {notifications && notifications.total > 0 && (
+                    <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-extrabold bg-rose-600 text-white rounded-full animate-pulse shadow-sm">
+                      {notifications.total}
+                    </span>
+                  )}
                 </Link>
-                <div className="hidden sm:block text-xs font-semibold text-gray-500">
-                  Hi, {user.name.split(' ')[0]} ({user.role})
+                <div className="hidden lg:block text-xs font-semibold text-gray-500">
+                  Hi, {user.name.split(' ')[0]}
                 </div>
                 <button
                   onClick={handleLogout}

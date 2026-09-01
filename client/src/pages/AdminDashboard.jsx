@@ -12,12 +12,17 @@ const AdminDashboard = () => {
   const [vendors, setVendors] = useState([]);
   const [contactMessages, setContactMessages] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [planners, setPlanners] = useState([]);
   
   // Package form state
   const [pkgForm, setPkgForm] = useState({ id: null, name: '', description: '', price: '', image: '' });
   
   // Vendor form state
   const [vendorForm, setVendorForm] = useState({ id: null, name: '', service: 'Venue', price: '', location: '', phone: '', email: '' });
+
+  // Planner form state
+  const [plannerForm, setPlannerForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [plannerSubmitting, setPlannerSubmitting] = useState(false);
 
   // Notifications / status
   const [loading, setLoading] = useState(true);
@@ -41,12 +46,13 @@ const AdminDashboard = () => {
         }
       };
 
-      const [reportsData, pkgsData, vendorsData, contactData, paymentsData] = await Promise.all([
+      const [reportsData, pkgsData, vendorsData, contactData, paymentsData, plannersData] = await Promise.all([
         fetchResource('/reports'),
         fetchResource('/packages'),
         fetchResource('/vendors?all=true'),
         fetchResource('/contact'),
-        fetchResource('/payments')
+        fetchResource('/payments'),
+        fetchResource('/admin/planners'),
       ]);
 
       if (reportsData) setReports(reportsData);
@@ -54,6 +60,7 @@ const AdminDashboard = () => {
       if (vendorsData) setVendors(vendorsData);
       if (contactData) setContactMessages(contactData);
       if (paymentsData) setPayments(paymentsData);
+      if (plannersData) setPlanners(plannersData);
     } catch (err) {
       console.error(err);
       showNotification('error', 'Failed to retrieve administrator data.');
@@ -179,6 +186,37 @@ const AdminDashboard = () => {
     }
   };
 
+  const handlePlannerSubmit = async (e) => {
+    e.preventDefault();
+    if (!plannerForm.name || !plannerForm.email || !plannerForm.password) return;
+    try {
+      setPlannerSubmitting(true);
+      const res = await axios.post('/admin/planners', plannerForm);
+      showNotification('success', res.data.message || 'Certified planner created.');
+      setPlannerForm({ name: '', email: '', phone: '', password: '' });
+      fetchAdminData();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Failed to provision planner.');
+    } finally {
+      setPlannerSubmitting(false);
+    }
+  };
+
+  const handlePlannerDelete = async (plannerId) => {
+    if (!window.confirm('Are you sure you want to remove this Certified Planner account?')) return;
+    try {
+      const res = await axios.delete(`/admin/planners/${plannerId}`);
+      showNotification('success', res.data.message || 'Planner removed.');
+      fetchAdminData();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Failed to remove planner.');
+    }
+  };
+
+  const pendingVendors = vendors.filter((v) => !v.isApproved || v.status === 'PENDING');
+  const pendingPayments = payments.filter((p) => p.status === 'PENDING');
+  const unreadInquiries = contactMessages.filter((m) => !m.isRead);
+
   if (loading) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
@@ -200,7 +238,7 @@ const AdminDashboard = () => {
 
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-gray-900">Administrator Console</h1>
-        <p className="text-gray-500 text-sm">Monitor platform metrics, manage packages, and vendor listings.</p>
+        <p className="text-gray-500 text-sm">Monitor platform metrics, manage certified planners, packages, and vendor listings.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -218,42 +256,95 @@ const AdminDashboard = () => {
           
           <button
             onClick={() => setActiveTab('packages')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'packages' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <Package className="h-5 w-5" />
-            <span>Manage Packages</span>
+            <div className="flex items-center gap-3">
+              <Package className="h-5 w-5" />
+              <span>Manage Packages</span>
+            </div>
+            <span className="text-xs bg-gray-100 text-gray-500 font-bold px-2 py-0.5 rounded-full">
+              {packages.length}
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('vendors')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'vendors' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <Briefcase className="h-5 w-5" />
-            <span>Manage Vendors</span>
+            <div className="flex items-center gap-3">
+              <Briefcase className="h-5 w-5" />
+              <span>Manage Vendors</span>
+            </div>
+            {pendingVendors.length > 0 ? (
+              <span className="text-[10px] bg-amber-500 text-white font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                {pendingVendors.length} New
+              </span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-500 font-bold px-2 py-0.5 rounded-full">
+                {vendors.length}
+              </span>
+            )}
           </button>
 
           <button
             onClick={() => setActiveTab('payments')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'payments' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <CreditCard className="h-5 w-5" />
-            <span>Verify Payments</span>
+            <div className="flex items-center gap-3">
+              <CreditCard className="h-5 w-5" />
+              <span>Verify Payments</span>
+            </div>
+            {pendingPayments.length > 0 ? (
+              <span className="text-[10px] bg-rose-600 text-white font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                {pendingPayments.length} New
+              </span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-500 font-bold px-2 py-0.5 rounded-full">
+                {payments.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('planners')}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+              activeTab === 'planners' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5" />
+              <span>Planners & Staff</span>
+            </div>
+            <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-full border border-blue-100">
+              {planners.length}
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('inquiries')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'inquiries' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <Mail className="h-5 w-5" />
-            <span>Contact Inquiries</span>
+            <div className="flex items-center gap-3">
+              <Mail className="h-5 w-5" />
+              <span>Contact Inquiries</span>
+            </div>
+            {unreadInquiries.length > 0 ? (
+              <span className="text-[10px] bg-blue-600 text-white font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                {unreadInquiries.length} New
+              </span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-500 font-bold px-2 py-0.5 rounded-full">
+                {contactMessages.length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -698,7 +789,144 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* TAB 5: CONTACT INQUIRIES */}
+          {/* TAB 5: PLANNERS & STAFF MANAGEMENT */}
+          {activeTab === 'planners' && (
+            <div className="space-y-10">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b pb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Certified Planners & Staff</h2>
+                    <p className="text-xs text-gray-500">Authorized coordinators who manage client timelines, budgets, and wedding tasks.</p>
+                  </div>
+                  <span className="bg-blue-50 text-blue-700 font-extrabold text-xs px-3 py-1.5 rounded-full border border-blue-200">
+                    {planners.length} Active Staff
+                  </span>
+                </div>
+
+                {planners.length === 0 ? (
+                  <div className="bg-gray-50/50 rounded-2xl p-8 text-center text-xs text-gray-500 border border-dashed border-gray-200">
+                    No planners registered yet. Use the form below to provision a planner.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-100 text-sm">
+                      <thead>
+                        <tr className="text-left font-semibold text-gray-400 bg-blue-50/30">
+                          <th className="py-3 px-4">Planner Details</th>
+                          <th className="py-3 px-4">Contact Info</th>
+                          <th className="py-3 px-4">Active Tasks</th>
+                          <th className="py-3 px-4">Date Provisioned</th>
+                          <th className="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 font-medium">
+                        {planners.map((p) => (
+                          <tr key={p.id} className="hover:bg-blue-50/20 transition text-gray-700">
+                            <td className="py-4 px-4 font-bold text-gray-900">
+                              <div className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                <span>{p.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-xs">
+                              <div className="font-semibold text-gray-900">{p.email}</div>
+                              <div className="text-gray-400">{p.phone || 'No phone'}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="text-xs bg-gray-100 text-gray-700 font-bold px-2.5 py-0.5 rounded-full">
+                                {p._count?.plannerTasks || 0} tasks
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-xs text-gray-400">
+                              {new Date(p.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handlePlannerDelete(p.id)}
+                                className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Add New Planner Form */}
+              <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-6 pt-4">
+                <h3 className="font-bold text-gray-900 mb-1">Provision New Certified Planner Account</h3>
+                <p className="text-xs text-gray-500 mb-4">Create secure planner credentials with planning privileges.</p>
+
+                <form onSubmit={handlePlannerSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Planner Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={plannerForm.name}
+                        onChange={(e) => setPlannerForm({ ...plannerForm, name: e.target.value })}
+                        placeholder="e.g. Sarah Uwase"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Official Email Address</label>
+                      <input
+                        type="email"
+                        required
+                        value={plannerForm.email}
+                        onChange={(e) => setPlannerForm({ ...plannerForm, email: e.target.value })}
+                        placeholder="sarah.planner@wedding.com"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone / WhatsApp</label>
+                      <input
+                        type="text"
+                        value={plannerForm.phone}
+                        onChange={(e) => setPlannerForm({ ...plannerForm, phone: e.target.value })}
+                        placeholder="+250 788 123 456"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Initial Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={plannerForm.password}
+                        onChange={(e) => setPlannerForm({ ...plannerForm, password: e.target.value })}
+                        placeholder="••••••••"
+                        className="block w-full rounded-2xl border border-gray-300 bg-white py-3 px-4 text-gray-950 focus:border-rose-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={plannerSubmitting}
+                      className="rounded-2xl bg-rose-600 text-white py-3 px-6 text-sm font-bold hover:bg-rose-500 transition shadow-md shadow-rose-100 disabled:opacity-60"
+                    >
+                      {plannerSubmitting ? 'Creating Planner...' : 'Provision Certified Planner'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: CONTACT INQUIRIES */}
           {activeTab === 'inquiries' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center border-b pb-4">

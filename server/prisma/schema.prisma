@@ -139,6 +139,7 @@ model Message {
   receiverId Int
   receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
   content    String   @db.Text
+  isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
 }
 
@@ -146,7 +147,8 @@ model ContactMessage {
   id        Int      @id @default(autoincrement())
   name      String
   email     String
-  subject   String  @default("No subject")   // or any default you want
+  subject   String   @default("No subject")
   message   String   @db.Text
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 }

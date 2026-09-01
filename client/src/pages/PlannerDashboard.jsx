@@ -207,12 +207,19 @@ const PlannerDashboard = () => {
 
           <button
             onClick={() => setActiveTab('chat')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-semibold transition ${
               activeTab === 'chat' ? 'bg-rose-50 text-rose-600' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <MessageSquare className="h-5 w-5" />
-            <span>Client Message Board</span>
+            <div className="flex items-center gap-3">
+              <MessageSquare className="h-5 w-5" />
+              <span>Client Message Board</span>
+            </div>
+            {chatContacts.reduce((acc, c) => acc + (c.unreadCount || 0), 0) > 0 && (
+              <span className="text-[10px] bg-rose-600 text-white font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                {chatContacts.reduce((acc, c) => acc + (c.unreadCount || 0), 0)} New
+              </span>
+            )}
           </button>
         </div>
 
@@ -371,23 +378,28 @@ const PlannerDashboard = () => {
                   {chatContacts.length === 0 ? (
                     <div className="text-xs text-gray-400 text-center py-8">No active chats. Message a client from the bookings tab.</div>
                   ) : (
-                    chatContacts.map(contact => (
                       <button
                         key={contact.id}
                         onClick={() => {
                           setSelectedContact(contact);
                           setMessages([]);
                         }}
-                        className={`w-full text-left p-3 rounded-xl border transition flex flex-col ${
+                        className={`w-full text-left p-3 rounded-xl border transition flex items-center justify-between ${
                           selectedContact && selectedContact.id === contact.id
                             ? 'border-rose-500 bg-rose-50 text-rose-600'
                             : 'border-transparent hover:bg-white text-gray-700'
                         }`}
                       >
-                        <span className="font-bold text-sm">{contact.name}</span>
-                        <span className="text-[10px] uppercase font-semibold text-gray-400 mt-1">{contact.role}</span>
+                        <div>
+                          <div className="font-bold text-sm">{contact.name}</div>
+                          <div className="text-[10px] uppercase font-semibold text-gray-400 mt-0.5">{contact.role}</div>
+                        </div>
+                        {contact.unreadCount > 0 && (
+                          <span className="bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                            {contact.unreadCount}
+                          </span>
+                        )}
                       </button>
-                    ))
                   )}
                 </div>
 

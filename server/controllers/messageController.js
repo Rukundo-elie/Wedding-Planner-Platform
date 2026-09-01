@@ -28,6 +28,7 @@ const sendMessage = async (req, res) => {
         senderId,
         receiverId: parseInt(receiverId),
         content,
+        isRead: false,
       },
       include: {
         sender: { select: { id: true, name: true, role: true } },
@@ -47,12 +48,25 @@ const getMessagesBetweenUsers = async (req, res) => {
   try {
     const userId = req.user.id;
     const { otherUserId } = req.params;
+    const partnerId = parseInt(otherUserId);
+
+    // Auto-mark incoming messages from this partner as read
+    await prisma.message.updateMany({
+      where: {
+        senderId: partnerId,
+        receiverId: userId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+      },
+    });
 
     const messages = await prisma.message.findMany({
       where: {
         OR: [
-          { senderId: userId, receiverId: parseInt(otherUserId) },
-          { senderId: parseInt(otherUserId), receiverId: userId },
+          { senderId: userId, receiverId: partnerId },
+          { senderId: partnerId, receiverId: userId },
         ],
       },
       include: {
@@ -69,7 +83,7 @@ const getMessagesBetweenUsers = async (req, res) => {
   }
 };
 
-// Get list of active chat partners (who this user has messages with)
+// Get list of active chat partners with unread counts
 const getChatPartners = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -86,7 +100,7 @@ const getChatPartners = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Extract unique partners
+    // Extract unique partners and compute unread counts
     const partnerMap = new Map();
     messages.forEach((msg) => {
       const partner = msg.senderId === userId ? msg.receiver : msg.sender;
@@ -97,7 +111,14 @@ const getChatPartners = async (req, res) => {
           role: partner.role,
           lastMessage: msg.content,
           timestamp: msg.createdAt,
+          unreadCount: 0,
         });
+      }
+
+      // Count unread message sent to the current user
+      if (msg.senderId === partner.id && msg.receiverId === userId && !msg.isRead) {
+        const item = partnerMap.get(partner.id);
+        item.unreadCount = (item.unreadCount || 0) + 1;
       }
     });
 
