@@ -62,17 +62,28 @@ const sendPasswordResetEmail = async ({ to, name = 'Valued User', resetUrl }) =>
   }
 
   // 2. Try Nodemailer SMTP (Gmail / Custom SMTP) if SMTP_USER is configured
-  if (process.env.SMTP_USER) {
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: Number(process.env.SMTP_PORT) === 465,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
+      const isGmail = (process.env.SMTP_HOST || 'smtp.gmail.com').includes('gmail');
+      const transporter = nodemailer.createTransport(
+        isGmail
+          ? {
+              service: 'gmail',
+              auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS,
+              },
+            }
+          : {
+              host: process.env.SMTP_HOST || 'smtp.gmail.com',
+              port: Number(process.env.SMTP_PORT) || 587,
+              secure: Number(process.env.SMTP_PORT) === 465,
+              auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS,
+              },
+            }
+      );
 
       await transporter.sendMail({
         from: process.env.EMAIL_FROM || `"Wedding Planner Platform" <${process.env.SMTP_USER}>`,
@@ -81,10 +92,10 @@ const sendPasswordResetEmail = async ({ to, name = 'Valued User', resetUrl }) =>
         html: htmlContent,
       });
 
-      console.log(`[Email Success]: Password reset email sent via SMTP to ${to}`);
-      return { success: true, provider: 'SMTP' };
+      console.log(`[Email Success]: Password reset email sent via Gmail SMTP to ${to}`);
+      return { success: true, provider: 'Gmail SMTP' };
     } catch (err) {
-      console.error('[SMTP Error]:', err.message);
+      console.error('[Gmail SMTP Error]:', err.message);
     }
   }
 
