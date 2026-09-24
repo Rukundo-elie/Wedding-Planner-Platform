@@ -190,14 +190,7 @@ const Login = () => {
             <p className="text-center text-xs text-gray-500">Google sign-in will be available once it is configured.</p>
           )}
 
-          {/* Seed demo info box */}
-          <div className="mt-8 border-t border-gray-100 pt-6">
-            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Demo User Logins</h4>
-            <div className="space-y-2 text-xs text-gray-600 bg-gray-50 p-4 rounded-xl">
-              <div><span className="font-bold">Admin:</span> admin@wedding.com <span className="text-gray-400">/</span> admin123</div>
-              <div><span className="font-bold">Planner:</span> planner@wedding.com <span className="text-gray-400">/</span> planner123</div>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>
