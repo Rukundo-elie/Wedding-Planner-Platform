@@ -139,32 +139,28 @@ const forgotPassword = async (req, res) => {
 
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
-      return res.status(404).json({ message: 'No Account For That Email' });
+      return res.status(404).json({ message: 'No account found with that email address.' });
     }
 
-    const response = { message: 'A reset link is ready for your account.' };
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: crypto.createHash('sha256').update(rawToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
 
-    if (user) {
-      await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      await prisma.passwordResetToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: crypto.createHash('sha256').update(rawToken).digest('hex'),
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-        },
-      });
+    const clientHost = req.headers.origin || process.env.CLIENT_URL || 'http://localhost:5173';
+    const appUrl = clientHost.replace(/\/$/, '');
+    const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
 
-      const appUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
-      const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
-      // Connect your email provider here in production and send resetUrl to the user.
-      if (process.env.NODE_ENV !== 'production') {
-        response.resetUrl = resetUrl;
-        response.token = rawToken;
-      }
-    }
-
-    res.json(response);
+    res.json({
+      message: 'Password reset link generated successfully.',
+      resetUrl,
+      token: rawToken,
+    });
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ message: 'Unable to start password reset. Please try again.' });
