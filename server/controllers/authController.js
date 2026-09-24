@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const prisma = require('../config/db');
+const { sendPasswordResetEmail } = require('../utils/email');
 
 const googleClient = new OAuth2Client();
 
@@ -156,10 +157,20 @@ const forgotPassword = async (req, res) => {
     const appUrl = clientHost.replace(/\/$/, '');
     const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
 
+    // Dispatch real email via Resend API or Nodemailer SMTP
+    const emailResult = await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+    });
+
     res.json({
-      message: 'Password reset link generated successfully.',
+      message: emailResult.success
+        ? `A password reset email has been sent to ${user.email}.`
+        : 'Password reset link generated successfully.',
       resetUrl,
       token: rawToken,
+      emailSent: emailResult.success,
     });
   } catch (error) {
     console.error('Forgot password error:', error);
