@@ -5,34 +5,57 @@ const AuthContext = createContext(null);
 
 export const useAuth = () => useContext(AuthContext);
 
+// Set smart base URL for API calls (Vercel -> Render or Local)
+const getBaseURL = () => {
+  let url = import.meta.env.VITE_API_URL;
+  if (url) {
+    url = url.trim().replace(/\/$/, '');
+    if (!url.endsWith('/api')) {
+      url = `${url}/api`;
+    }
+    return url;
+  }
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:5000/api';
+  }
+  return '/api';
+};
+
+axios.defaults.baseURL = getBaseURL();
+
+// Attach token on every request so dashboard fetches work immediately after login
+// (child useEffects can run before AuthProvider's useEffect sets defaults.headers).
+let authInterceptorRegistered = false;
+if (!authInterceptorRegistered) {
+  axios.interceptors.request.use((config) => {
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      config.headers.Authorization = `Bearer ${storedToken}`;
+    }
+    return config;
+  });
+  authInterceptorRegistered = true;
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
 
-  // Set smart base URL for API calls (Vercel -> Render or Local)
-  const getBaseURL = () => {
-    let url = import.meta.env.VITE_API_URL;
-    if (url) {
-      url = url.trim().replace(/\/$/, '');
-      if (!url.endsWith('/api')) {
-        url = `${url}/api`;
+  const logout = useCallback(async () => {
+    try {
+      const storedToken = localStorage.getItem('token');
+      if (storedToken) {
+        await axios.post('/auth/logout');
       }
-      return url;
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
     }
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      return 'http://localhost:5000/api';
-    }
-    return '/api';
-  };
-
-  axios.defaults.baseURL = getBaseURL();
-
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
   }, []);
 
   useEffect(() => {

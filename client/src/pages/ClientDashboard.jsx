@@ -10,7 +10,7 @@ import { readImageFile } from '../utils/cropCoverImage';
 import CoverPhotoEditor from '../components/CoverPhotoEditor';
 
 const ClientDashboard = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -71,6 +71,7 @@ const ClientDashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (!token) return;
     fetchDashboardData();
     
     const selectPkg = searchParams.get('selectPackage');
@@ -78,7 +79,7 @@ const ClientDashboard = () => {
       setSelectedPkgId(selectPkg);
       setActiveTab('book');
     }
-  }, [searchParams]);
+  }, [searchParams, token]);
 
   useEffect(() => {
     let interval;

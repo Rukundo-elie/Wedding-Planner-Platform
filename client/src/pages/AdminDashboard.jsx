@@ -78,6 +78,8 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
+
+    setLoading(false);
   };
 
   const showNotification = (type, text) => {
@@ -444,6 +446,11 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                 ))}
+                {packages.length === 0 && (
+                  <p className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
+                    No packages are available yet. Create a package using the form above.
+                  </p>
+                )}
               </div>
 
               {/* Package form */}

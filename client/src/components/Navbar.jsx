@@ -19,6 +19,7 @@ const Navbar = () => {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     let timer;
@@ -39,9 +40,10 @@ const Navbar = () => {
     return () => clearInterval(timer);
   }, [isAuthenticated, location.pathname, user?.role]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    setShowLogoutConfirm(false);
     setMobileOpen(false);
-    logout();
+    await logout();
     navigate('/');
   };
 
@@ -120,7 +122,7 @@ const Navbar = () => {
                   Hi, {user.name.split(' ')[0]}
                 </div>
                 <button
-                  onClick={handleLogout}
+                  onClick={() => setShowLogoutConfirm(true)}
                   className="rounded-full p-2 text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition"
                   title="Logout"
                 >
@@ -199,6 +201,37 @@ const Navbar = () => {
                 </Link>
               </div>
             )}
+          </div>
+        )}
+
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px] px-4">
+            <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-center justify-center text-red-600">
+                <LogOut className="h-10 w-10" />
+              </div>
+              <h3 className="text-center text-xl font-bold text-gray-900">Log out?</h3>
+              <p className="mt-2 text-center text-sm text-gray-600">
+                Are you sure to Logout ❓
+              </p>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex-1 rounded-xl bg-red-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500"
+                >
+                  Log Out
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
