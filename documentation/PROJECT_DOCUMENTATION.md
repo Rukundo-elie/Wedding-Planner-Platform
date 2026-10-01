@@ -261,4 +261,34 @@ FLW_SECRET_KEY="FLWSECK_TEST-xxxxxxxx"
 
 ---
 
+## 10. Future Development & Production Scaling Roadmap
+
+To transition this platform from a prototype to a full commercial release, the following strategic upgrades and enhancements are recommended for company leadership:
+
+### 🌐 10.1 Production Hosting & Custom Domain Acquisition
+- **Custom Domain Name:** Acquire an official business domain (e.g., `www.weddingplanner.rw` or `www.weddingplanner.com`).
+- **Enterprise Hosting Platform:** Migrate from developer free tiers to high-availability production cloud infrastructure:
+  - **Database:** Managed MySQL instance (AWS RDS / DigitalOcean / PlanetScale) with automated daily backups.
+  - **Backend API:** Dedicated server deployment (AWS EC2 / Render Pro / Railway) with SSL security certificates.
+  - **Frontend Client:** High-speed Global CDN deployment (Vercel Production / Netlify / Cloudflare Pages).
+- **SSL / HTTPS Certificates:** Enforce TLS 1.3 encryption across all API routes and client traffic.
+
+### 🏢 10.2 Official Company Branding & Contact Migration
+- **Corporate Email Setup:** Transition system notification emails from developer test addresses to official domain emails (e.g., `support@weddingplanner.rw`, `info@weddingplanner.rw`).
+- **Company Identity Update:** Replace developer test addresses and sample contact details with official corporate physical headquarters, customer service hotlines, and social media handles across all email templates and website footers.
+
+### 🚀 10.3 Planned Feature Enhancements
+1. **Native Mobile Applications (iOS & Android):**
+   - Develop companion iOS and Android mobile apps using React Native / Flutter for real-time mobile push notifications for bookings, messages, and task updates.
+2. **Direct Mobile Money USSD Integration:**
+   - Integrate native MTN MoMo & Airtel Money Direct USSD Push (STK Prompt) for instant 1-click deposit payments in Rwanda.
+3. **Calendar & Appointment Synchronization:**
+   - Integrate Google Calendar / Outlook API so certified planners and vendors automatically sync site visits and wedding appointment schedules.
+4. **Verified Client Review & Rating System:**
+   - Enable verified clients to submit star ratings and detailed reviews for vendors post-wedding date to build platform trust.
+5. **Multi-Language Support (Localization):**
+   - Add language toggles for **Kinyarwanda**, **French**, and **English** across the public portal and client dashboards.
+
+---
+
 *Documentation compiled and maintained for Wedding Planner Platform.*
