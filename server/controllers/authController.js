@@ -165,11 +165,7 @@ const forgotPassword = async (req, res) => {
     });
 
     res.json({
-      message: emailResult.success
-        ? `A password reset email has been sent to ${user.email}.`
-        : 'Password reset link generated successfully.',
-      resetUrl,
-      token: rawToken,
+      message: `A password reset email has been sent to ${user.email}. Please check your email inbox to proceed.`,
       emailSent: emailResult.success,
     });
   } catch (error) {
